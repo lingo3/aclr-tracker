@@ -1,0 +1,1175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1764c4">
+<meta name="robots" content="noindex">
+<title>ACL Power-Up Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px) }
+img { max-width: 100% }
+/* Layout: one phone-width column; a post-op-day header, tab strip, then a time-ordered checklist. */
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --ink: #14202b; --muted: #5b6875; --line: #dde3e9;
+  --accent: #1764c4; --accent-ink: #ffffff; --accent-soft: #e3eefb;
+  --meds: #7a4cc2; --ice: #0b8fb3; --dressing: #b7791f; --exercise: #2f8a4c; --appt: #c2410c; --other: #64748b;
+  --warn: #c2410c; --good: #2f8a4c;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e151c; --surface: #16202a; --ink: #e6edf3; --muted: #93a2b1; --line: #263442;
+  --accent: #5ea2f2; --accent-ink: #0b1622; --accent-soft: #1a2c42;
+  --meds: #b196ea; --ice: #4cc3e2; --dressing: #e3a94b; --exercise: #62c483; --appt: #f08a5d; --other: #9aa8b8;
+  --warn: #f08a5d; --good: #62c483; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e151c; --surface: #16202a; --ink: #e6edf3; --muted: #93a2b1; --line: #263442;
+  --accent: #5ea2f2; --accent-ink: #0b1622; --accent-soft: #1a2c42;
+  --meds: #b196ea; --ice: #4cc3e2; --dressing: #e3a94b; --exercise: #62c483; --appt: #f08a5d; --other: #9aa8b8;
+  --warn: #f08a5d; --good: #62c483; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 48px }
+.wrap { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance }
+button, input, select, textarea { font: inherit; color: inherit }
+button { cursor: pointer }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums }
+.label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700 }
+
+header.top { display: grid; grid-template-columns: auto 1fr; gap: 4px 18px; align-items: center }
+.pod { grid-row: span 2; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 92px; height: 92px; border-radius: 50%; background: var(--accent); color: var(--accent-ink) }
+.pod b { font-family: var(--display); font-size: 40px; font-weight: 800; line-height: 1 }
+.pod span { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700 }
+header.top h1 { font-size: clamp(22px, 5vw, 28px); font-weight: 800 }
+.sub { color: var(--muted); font-size: 14px }
+.banner { background: var(--accent-soft); border-radius: 10px; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 14px }
+.banner input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface) }
+
+nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto }
+nav.tabs button { background: none; border: 0; padding: 10px 14px; font-weight: 700; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent) }
+
+.daybar { display: flex; align-items: center; gap: 8px; justify-content: space-between }
+.daybar .d { text-align: center; flex: 1 }
+.daybar .d strong { font-family: var(--display); font-size: 18px; display: block }
+.iconbtn { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; width: 40px; height: 40px; font-size: 18px }
+.progress { display: flex; flex-direction: column; gap: 6px }
+.bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden }
+.bar i { display: block; height: 100%; background: var(--good); border-radius: 99px; transition: width .3s }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none } }
+.next { font-size: 14px; color: var(--muted) }
+.next b { color: var(--ink) }
+
+.filters { display: flex; flex-wrap: wrap; gap: 6px }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 4px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px }
+.chip[aria-pressed="true"] { border-color: var(--ink); font-weight: 700 }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c, var(--other)); flex: none }
+
+ol.list { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden }
+ol.list li { display: grid; grid-template-columns: 64px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--line); position: relative }
+ol.list li:first-child { border-top: 0 }
+ol.list li::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c) }
+ol.list li.late .time { color: var(--warn); font-weight: 600 }
+ol.list li.done .what { opacity: .55 }
+ol.list li.done .what strong { text-decoration: line-through }
+.time { font-family: var(--mono); font-size: 13px; color: var(--muted); white-space: nowrap }
+.what { min-width: 0 }
+.what strong { display: block }
+.what small { color: var(--muted); display: block; font-size: 13px }
+.what .stamp { color: var(--good); font-size: 12px; font-family: var(--mono) }
+.check { width: 44px; height: 44px; border-radius: 10px; border: 2px solid var(--line); background: var(--bg); display: grid; place-items: center }
+.check svg { width: 22px; height: 22px; stroke: var(--accent-ink); stroke-width: 3; fill: none; opacity: 0 }
+li.done .check { background: var(--good); border-color: var(--good) }
+li.done .check svg { opacity: 1 }
+.empty { padding: 24px; text-align: center; color: var(--muted) }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 14px }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0 }
+.field input, .field select, .field textarea { padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); width: 100% }
+.field textarea { min-height: 70px; resize: vertical }
+.pain { display: flex; gap: 4px; flex-wrap: wrap }
+.pain button { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); font-family: var(--mono) }
+.pain button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+.hint { font-size: 13px; color: var(--muted) }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 9px 14px; font-weight: 700 }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+.btn.danger { color: var(--warn) }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
+
+.plan h3 { font-size: 15px; display: flex; align-items: center; gap: 8px; margin-top: 4px }
+.ptask { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line) }
+.ptask:first-of-type { border-top: 0 }
+.ptask div { min-width: 0 }
+.ptask small { display: block; color: var(--muted); font-size: 13px }
+.timesbox { display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
+.timesbox span { background: var(--accent-soft); border-radius: 6px; padding: 3px 4px 3px 8px; font-family: var(--mono); font-size: 13px; display: inline-flex; gap: 4px; align-items: center }
+.timesbox span button { border: 0; background: none; padding: 0 4px; color: var(--muted) }
+.dows { display: flex; gap: 4px; flex-wrap: wrap }
+.dows label { display: inline-flex; gap: 4px; align-items: center; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px }
+
+.chartbox { overflow-x: auto }
+.chartbox svg { display: block; width: 100%; height: auto }
+table.hist { width: 100%; border-collapse: collapse; font-size: 14px }
+table.hist th, table.hist td { text-align: right; padding: 6px 8px; border-top: 1px solid var(--line); white-space: nowrap }
+table.hist th:first-child, table.hist td:first-child { text-align: left }
+table.hist thead th { border-top: 0; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em }
+.tablewrap { overflow-x: auto }
+.timerbtn { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 14px }
+.timerbtn svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 2.2; fill: none }
+#timer { position: fixed; inset: 0; z-index: 50; background: var(--bg); overflow-y: auto;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)) }
+#timer .tw { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px }
+#timer .thead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px }
+#timer .thead h2 { font-size: 20px }
+#timer .ring { position: relative; width: min(78vw, 300px); aspect-ratio: 1; margin: 4px auto 0 }
+#timer .ring svg { width: 100%; height: 100%; transform: rotate(-90deg) }
+#timer .ring .mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center }
+#timer .tphase { font-family: var(--display); font-size: 26px; font-weight: 800; color: var(--tc) }
+#timer .count { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 64px; font-weight: 600; line-height: 1.05 }
+#timer .count.long { font-size: 52px }
+#timer .meta { display: flex; justify-content: center; gap: 24px; font-family: var(--mono); font-size: 15px; color: var(--muted) }
+#timer .meta b { color: var(--ink); font-size: 22px; display: block; text-align: center }
+#timer .ctl { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap }
+#timer .ctl .btn { min-height: 52px; min-width: 104px; font-size: 17px }
+#timer .tgrid { align-items: end; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px }
+#timer .tgrid input { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-family: var(--mono); font-size: 18px }
+#timer .sum { font-size: 15px; color: var(--muted) }
+.status { font-size: 12px; color: var(--muted); text-align: center }
+.phase { background: var(--accent-soft); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px }
+.phase h2 { font-size: 17px }
+.phase p { margin: 0; font-size: 14px }
+.sechead { display: flex; align-items: center; gap: 8px; justify-content: space-between; margin: 6px 2px -6px }
+.sechead h2 { font-size: 17px; display: flex; align-items: center; gap: 8px }
+.sechead .num { font-size: 13px; color: var(--muted) }
+.what .cond { color: var(--warn); font-size: 13px; display: block }
+.what details { font-size: 13px; color: var(--muted) }
+.what details summary { cursor: pointer; width: fit-content }
+.what .carry { color: var(--warn); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em }
+.dose { min-width: 76px; height: 44px; border-radius: 10px; border: 2px solid var(--meds); background: var(--bg); font-weight: 700; color: var(--meds); padding: 0 10px }
+.dose:disabled { opacity: .5 }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 700; text-decoration: underline; font-size: 13px }
+ul.notes { margin: 0; padding-left: 18px; font-size: 14px; color: var(--muted) }
+.qcard textarea { min-height: 56px }
+details.carrybox > summary { list-style: none; cursor: pointer }
+details.carrybox > summary::-webkit-details-marker { display: none }
+details.carrybox > summary h2::after { content: " ▸"; color: var(--muted) }
+details.carrybox[open] > summary h2::after { content: " ▾" }
+[hidden] { display: none !important }
+ol.list li.g { grid-template-columns: minmax(0,1fr) }
+ol.list li.nt { grid-template-columns: minmax(0,1fr) auto }
+.what small.d { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden }
+.times { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px }
+.tbtn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; border-radius: 10px; border: 2px solid var(--line); background: var(--bg); font-family: var(--mono); font-size: 13px }
+.tbtn svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 3; fill: none; opacity: .25 }
+.tbtn[aria-pressed="true"] { background: var(--good); border-color: var(--good); color: var(--accent-ink) }
+.tbtn[aria-pressed="true"] svg { opacity: 1 }
+.tbtn.late { border-color: var(--warn); color: var(--warn) }
+.disclaimer { font-size: 13px; color: var(--muted); border-left: 3px solid var(--line); padding-left: 10px }
+#sync { font-size: 12px; color: var(--muted); grid-column: 2 }
+header.top .pod { grid-row: span 3 }
+.mrow { flex-wrap: wrap; align-items: center }
+.mrow strong { overflow-wrap: anywhere }
+.mrow select { padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg) }
+.btn { white-space: nowrap }
+#sync[data-state="offline-pending"], #sync[data-state="offline"] { color: var(--warn); font-weight: 700 }
+</style>
+</head>
+<body>
+<div class="wrap" id="gate" hidden></div>
+<div class="wrap" id="app" hidden>
+  <header class="top">
+    <div class="pod" aria-label="Post-op day"><span>Day</span><b class="num" id="podNum">–</b><span id="podWeek">post-op</span></div>
+    <h1>ACL Power-Up Tracker</h1>
+    <div class="sub" id="headSub">Loading your plan…</div>
+    <div id="sync" role="status"></div>
+  </header>
+  <div class="banner" id="setup" hidden>
+    <span>Set your surgery date so the plan lines up with your post-op days.</span>
+    <input type="date" id="setupDate" aria-label="Surgery date">
+    <button class="btn primary" id="setupSave">Save date</button>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="today" aria-selected="true">Today</button>
+    <button role="tab" data-tab="log" aria-selected="false">Daily log</button>
+    <button role="tab" data-tab="questions" aria-selected="false">Questions</button>
+    <button role="tab" data-tab="plan" aria-selected="false">Plan</button>
+    <button role="tab" data-tab="history" aria-selected="false">Progress</button>
+  </nav>
+  <main id="view"></main>
+  <div class="status" id="status"></div>
+</div>
+<div id="timer" role="dialog" aria-modal="true" aria-label="Exercise timer" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(() => {
+const CATS = {
+  meds: { label: "Medication", c: "var(--meds)" },
+  ice: { label: "Ice / cold therapy", c: "var(--ice)" },
+  dressing: { label: "Wound & dressing", c: "var(--dressing)" },
+  exercise: { label: "Home exercises", c: "var(--exercise)" },
+  appt: { label: "Appointments", c: "var(--appt)" },
+  other: { label: "Brace, elevation & other", c: "var(--other)" },
+};
+const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+// Surgeon's protocol, pharmacy labels and open questions, from the approved review spreadsheet
+// (aclr-surgeon-protocol-events.xlsx). Day offsets are post-op days: 0 = surgery day.
+let PROTOCOL = { items: [], phases: [], preGoals: "", info: [], questions: [], postOpVisit: 11 };   // the surgeon's protocol loads after sign-in (kept out of the public page)
+const SURGERY_DEFAULT = "2026-11-13", POSTOP_VISIT = "2026-11-24";
+const SECS = {
+  event: { label: "Events & appointments", c: "var(--appt)" },
+  med: { label: "Medications", c: "var(--meds)" },
+  routine: { label: "Daily routines", c: "var(--exercise)" },
+  goal: { label: "Goals & criteria", c: "var(--ice)" },
+  question: { label: "Questions to ask", c: "var(--dressing)" },
+  custom: { label: "My tasks", c: "var(--other)" },
+};
+// Your own tasks (e.g. PT sessions once booked). The protocol items above are fixed.
+function starterPlan() {
+  return { surgeryDate: SURGERY_DEFAULT, side: "Left", v2: true, tasks: [
+    { id: uid(), cat: "appt", name: "Physical therapy session", detail: "2x/week for 12 weeks; formal PT can start 1-2 weeks after surgery. Edit the days and time once PT is booked.", times: [], freq: "days", dow: [2,4], date: "", startDay: 7, endDay: 91 },
+  ] };
+}
+// ---------- dates ----------
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parseYmd = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); };
+const diffDays = (a, b) => Math.round((parseYmd(a) - parseYmd(b)) / 864e5);
+const todayStr = () => ymd(new Date());
+const nowHM = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const fmtDay = s => parseYmd(s).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+const fmtTime = iso => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+const fmtHM = hm => { const [h,m] = hm.split(":").map(Number); const d = new Date(); d.setHours(h, m); return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); };
+
+// ---------- state ----------
+let plan = starterPlan();
+const days = {};           // "YYYY-MM-DD" -> { done: {key: iso}, pain, swelling, flex, ext, note }
+let carryOpen = false;
+let tab = "today", sel = todayStr(), filter = null, editing = null, confirmReset = false;
+let draft = { knee: "op", motion: "flex", method: "app", value: "", thigh: "", shin: "" };
+let photo = null;          // { img, pts: [[x,y],...] } held in memory only; photos are never saved
+let store = null;          // { mode: "cloud"|"local", saveDoc(name, data), loadAll() }
+
+const pod = d => plan.surgeryDate ? diffDays(d, plan.surgeryDate) : null;
+function activeOn(task, d) {
+  if (task.freq === "once") return task.date === d;
+  const p = pod(d);
+  if (p !== null) {
+    if (p < (task.startDay ?? 0)) return false;
+    if (task.endDay !== null && task.endDay !== "" && p > task.endDay) return false;
+  }
+  if (task.freq === "days") return task.dow.includes(parseYmd(d).getDay());
+  return true;
+}
+function occurrences(d) {
+  const out = [];
+  for (const t of plan.tasks) if (activeOn(t, d)) for (const hm of (t.times.length ? t.times : ["—"])) out.push({ t, hm, key: `${t.id}@${hm}` });
+  return out.sort((a, b) => a.hm.localeCompare(b.hm) || a.t.name.localeCompare(b.t.name));
+}
+const dayDoc = d => (days[d] ||= { done: {} });
+const checks = { done: {}, answers: {} };   // one-time items (events, goals, questions): checked once, for good
+const isDone = id => checks.done[id] || (PROTOCOL.items.find(i => i.id === id)?.predone ? "pre" : null);
+const inWin = (it, p) => p >= it.start && (it.end == null ? (it.persist ? true : p === it.start) : p <= it.end);
+const qStart = q => q.askBy - 7;
+
+// Everything for one day, grouped by section. Day-scoped keys ("d:") are per day; global keys ("g:") are once.
+function dayItems(d) {
+  const p = pod(d), out = { event: [], med: [], prn: [], routine: [], goal: [], question: [], custom: [], carry: [], info: [] };
+  if (p === null) return out;
+  const isToday = d === todayStr();
+  for (const it of PROTOCOL.items) {
+    if (it.sec === "med" || it.sec === "routine") {
+      if (p < it.start || (it.end != null && p > it.end)) continue;
+      if (it.dow && !it.dow.includes(parseYmd(d).getDay())) continue;
+      if (it.prn) { out.prn.push(it); continue; }
+      let times = it.times.length ? it.times : ["—"];
+      if (p === 0 && it.postop) times = times.filter(t => t === "—" || t >= "15:00");
+      if (it.skip?.[p]) times = times.filter(t => !it.skip[p].includes(t));
+      for (const hm of times) out[it.sec].push({ it, hm, key: `d:${it.id}@${hm}` });
+    } else {
+      if (inWin(it, p)) out[it.sec].push({ it, hm: "—", key: `g:${it.id}` });
+      else if (isToday && !isDone(it.id) && p > (it.end ?? it.start) && p - (it.end ?? it.start) <= 14 && !it.persist) out.carry.push({ it, hm: "—", key: `g:${it.id}`, sec: it.sec });
+    }
+  }
+  for (const q of PROTOCOL.questions) {
+    if (q.askBy == null) continue;
+    const it = { ...q, sec: "question", detail: `${q.when} · Ask: ${q.who}`, cond: "" };
+    if (p >= qStart(q) && p <= q.askBy) out.question.push({ it, hm: "—", key: `g:${q.id}` });
+    else if (isToday && p > q.askBy && !isDone(q.id)) out.carry.push({ it, hm: "—", key: `g:${q.id}`, sec: "question" });
+  }
+  for (const o of occurrences(d)) out.custom.push({ it: { id: o.t.id, title: o.t.name, detail: o.t.detail }, hm: o.hm, key: `d:${o.key}` });
+  for (const i of PROTOCOL.info) if (p >= i.start && p <= (i.end ?? i.start)) out.info.push(i);
+  for (const k of ["med", "routine", "custom"]) out[k].sort((a, b) => a.hm.localeCompare(b.hm));
+  return out;
+}
+const checkable = di => ["event", "med", "routine", "goal", "question", "custom"].flatMap(k => di[k]);
+const isChecked = (d, key) => key.startsWith("g:") ? isDone(key.slice(2)) : (days[d]?.done || {})[key.slice(2)];
+function dayStats(d) { const all = checkable(dayItems(d)); return { n: all.filter(o => isChecked(d, o.key)).length, tot: all.length }; }
+function phaseFor(p) {
+  if (p === null) return null;
+  if (p < 0) return { title: "Before surgery: prehab", goals: PROTOCOL.preGoals };
+  const ph = PROTOCOL.phases.filter(x => p >= x.start && (x.end == null || p <= x.end));
+  return ph.length ? ph[ph.length - 1] : null;
+}
+
+// ---------- persistence ----------
+// Shared online store: Supabase table "tracker_docs" (one row per document: plan, checks, day-YYYY-MM-DD).
+// Sign-in by emailed link. Access comes from the "members" table (admin / editor / viewer), enforced by row-level security.
+// Edits made offline wait in this browser and sync when the connection returns; edits from two people merge field by field.
+const SB_URL = "https://opapkeflbtnbnoarksjl.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wYXBrZWZsYnRuYm5vYXJrc2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1ODQ3OTQsImV4cCI6MjExMDE2MDc5NH0.b6QxB1wXabFhKyDvf3bxYyJpVUw-g0BtZR9SlDqH7TI";
+const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" } }) : null;
+const LS = "aclr-tracker-v1", CACHE = "aclr-cache-v2", PENDING = "aclr-pending-v2", ROLEKEY = "aclr-role-v2";
+const lsGet = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } };
+const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+let me = null;            // { email, role }
+let readOnly = false;
+const canEdit = () => me && (me.role === "admin" || me.role === "editor");
+
+const isObj = v => v && typeof v === "object" && !Array.isArray(v);
+function deq(a, b) {
+  if (a === b) return true;
+  if (typeof a !== typeof b || a == null || b == null || typeof a !== "object") return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const ka = Object.keys(a), kb = Object.keys(b);
+  return ka.length === kb.length && ka.every(k => deq(a[k], b[k]));
+}
+// Three-way merge: keep both people's changes; where both changed the same field, the newer local edit wins.
+function merge3(b, l, r) {
+  if (deq(l, b)) return r;
+  if (deq(r, b)) return l;
+  if (isObj(l) && isObj(r)) {
+    const out = {}, bb = isObj(b) ? b : {};
+    for (const k of new Set([...Object.keys(l), ...Object.keys(r)])) { const v = merge3(bb[k], l[k], r[k]); if (v !== undefined) out[k] = v; }
+    return out;
+  }
+  return l;
+}
+// Union used when moving this device's old data in: the shared copy wins where both have a value.
+function unionMerge(server, local) {
+  if (server === undefined) return local;
+  if (isObj(server) && isObj(local)) { const out = { ...local }; for (const k of Object.keys(server)) out[k] = unionMerge(server[k], local[k]); return out; }
+  return server;
+}
+const clone = v => v == null ? v : JSON.parse(JSON.stringify(v));
+function toData(docs) {
+  const out = { plan: null, days: {}, checks: null, n: 0 };
+  for (const [id, v] of Object.entries(docs)) { if (v == null) continue; out.n++;
+    if (id === "plan") out.plan = v; else if (id === "checks") out.checks = v; else if (id === "protocol") out.protocol = v; else if (id.startsWith("day-")) out.days[id.slice(4)] = v; }
+  return out;
+}
+
+function onlineStore() {
+  const server = lsGet(CACHE) || {};        // id -> data, last version seen from the server
+  const pending = lsGet(PENDING) || {};     // id -> { data, base } edits not yet saved online
+  let flushing = false, retryT = null, listener = null;
+  const view = () => { const v = { ...server }; for (const [id, p] of Object.entries(pending)) v[id] = p.data; return toData(v); };
+  const persist = () => { lsSet(CACHE, server); lsSet(PENDING, pending); updateSync(); };
+  const isNetErr = e => !navigator.onLine || /fetch|network|Failed|timeout/i.test(String(e?.message || e));
+  function updateSync() { const n = Object.keys(pending).length; syncState = !navigator.onLine ? (n ? "offline-pending" : "offline") : n ? "saving" : "saved"; renderSync(); }
+
+  async function pull() {
+    const { data, error } = await sb.from("tracker_docs").select("id,data");
+    if (error) throw error;
+    for (const k of Object.keys(server)) delete server[k];
+    for (const r of data) server[r.id] = r.data;
+    persist();
+  }
+  async function flush() {
+    if (flushing || !navigator.onLine) return;
+    flushing = true; clearTimeout(retryT);
+    let changed = false;
+    try {
+      for (const id of Object.keys(pending)) {
+        const p = pending[id], local = p.data;
+        const { data: row, error: e1 } = await sb.from("tracker_docs").select("data").eq("id", id).maybeSingle();
+        if (e1) throw e1;
+        const remote = row ? row.data : null;
+        const out = deq(remote, p.base) ? local : merge3(p.base, local, remote);
+        const { error: e2 } = await sb.from("tracker_docs").upsert({ id, data: out, updated_by: me.email });
+        if (e2) throw e2;
+        server[id] = out;
+        if (pending[id] === p) delete pending[id]; else pending[id].base = clone(out);
+        if (!deq(out, local)) changed = true;
+        persist();
+      }
+      if (changed) listener?.(view());
+    } catch (e) {
+      if (e?.code === "42501" || /row-level security|permission/i.test(e?.message || "")) {
+        readOnly = true; for (const k of Object.keys(pending)) delete pending[k]; persist();
+        setStatus("View only: ask Malek for edit access to save changes."); listener?.(view());
+      } else if (isNetErr(e)) { retryT = setTimeout(flush, 15000); }
+      else { setStatus("Couldn't save yet: " + (e?.message || "unknown error") + ". Will retry."); retryT = setTimeout(flush, 30000); }
+    } finally { flushing = false; updateSync(); }
+    if (Object.keys(pending).length && navigator.onLine && !retryT) retryT = setTimeout(flush, 3000);
+  }
+  window.addEventListener("online", async () => { updateSync(); try { await pull(); } catch {} listener?.(view()); flush(); });
+  window.addEventListener("offline", updateSync);
+  document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && navigator.onLine) { try { await pull(); listener?.(view()); } catch {} flush(); } });
+
+  return {
+    mode: "online",
+    async loadAll() {
+      try { await pull(); } catch (e) { if (!Object.keys(server).length) setStatus("Offline: showing what this device saved last."); }
+      await migrateLocal(this);
+      flush();
+      return view();
+    },
+    subscribe(cb) {
+      listener = cb;
+      sb.channel("tracker-docs").on("postgres_changes", { event: "*", schema: "public", table: "tracker_docs" }, payload => {
+        const r = payload.new; if (!r?.id) return;
+        server[r.id] = r.data; persist();
+        if (!pending[r.id]) cb(view());
+      }).subscribe();
+    },
+    saveDoc(name, data) {
+      if (!canEdit() || readOnly) { setStatus("View only: ask Malek for edit access to save changes."); listener?.(view()); return; }
+      pending[name] = { data: clone(data), base: pending[name] ? pending[name].base : clone(server[name] ?? null) };
+      persist(); flush();
+    },
+  };
+}
+// Bring over anything this browser saved before the online version (one time per person).
+async function migrateLocal(store) {
+  const old = lsGet(LS), flag = "aclr-moved-" + me.email;
+  if (!old || lsGet(flag) || !canEdit()) return;
+  let n = 0;
+  const push = (id, v) => { if (v == null) return; n++; store.saveDoc(id, v); };
+  const sv = lsGet(CACHE) || {};
+  if (old.plan) push("plan", unionMerge(sv.plan, old.plan));
+  if (old.checks) push("checks", unionMerge(sv.checks, old.checks));
+  for (const [d, v] of Object.entries(old.days || {})) push("day-" + d, unionMerge(sv["day-" + d], v));
+  lsSet(flag, true);
+  if (n) setStatus(`Moved ${n} saved item${n === 1 ? "" : "s"} from this device to the shared tracker.`);
+}
+
+const savePlan = () => { plan.template = false; store?.saveDoc("plan", plan); };
+const saveChecks = () => store?.saveDoc("checks", checks);
+const saveDay = d => store?.saveDoc("day-" + d, days[d]);
+let syncState = "";
+function renderSync() {
+  const el = document.getElementById("sync"); if (!el) return;
+  const t = { saved: "Synced", saving: "Saving…", offline: "Offline", "offline-pending": "Offline: changes will sync when you reconnect" }[syncState] || "";
+  el.textContent = me ? `${t}${t ? " · " : ""}${me.role === "viewer" || readOnly ? "View only" : ""}`.replace(/ · $/, "") : "";
+  el.dataset.state = syncState;
+}
+let statusT = null; function setStatus(s) { const el = document.getElementById("status"); el.textContent = s; clearTimeout(statusT); statusT = setTimeout(() => { statusT = null; el.textContent = storeNote(); }, 4000); }
+const storeNote = () => me ? `Signed in as ${me.email}` : "";
+
+// ---------- sign-in ----------
+function showGate(html) {
+  document.getElementById("app").hidden = true;
+  const g = document.getElementById("gate"); g.hidden = false; g.innerHTML = html;
+}
+function signInScreen(msg) {
+  showGate(`<div class="card" style="max-width:420px;margin:10vh auto 0">
+    <h1 style="font-size:24px">ACL Power-Up Tracker</h1>
+    <p class="hint">Sign in with your email. We'll send you a link. Open it on this device to sign in. Only people on the tracker's list can see it.</p>
+    <form id="signinForm" class="field" style="gap:10px">
+      <label class="field"><span class="label">Email</span><input id="signinEmail" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+      <button class="btn primary" type="submit" id="signinBtn">Email me a sign-in link</button>
+    </form>
+    <p class="hint" id="signinMsg" role="status">${msg || ""}</p></div>`);
+  document.getElementById("signinForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const email = document.getElementById("signinEmail").value.trim().toLowerCase(), m = document.getElementById("signinMsg"), b = document.getElementById("signinBtn");
+    if (!sb) { m.textContent = "Can't reach the sign-in service. Check your connection and reload."; return; }
+    b.disabled = true; m.textContent = "Sending…";
+    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
+    b.disabled = false;
+    m.textContent = error ? (/rate|seconds/i.test(error.message) ? "Too many sign-in emails just now. Wait a minute and try again." : "Couldn't send the email: " + error.message)
+      : `Check ${email} for a sign-in link. It can take a minute, and may land in spam.`;
+  });
+}
+function notListedScreen(email) {
+  showGate(`<div class="card" style="max-width:420px;margin:10vh auto 0">
+    <h1 style="font-size:22px">You're signed in, but not on the list yet</h1>
+    <p>${esc(email)} doesn't have access to this tracker. Ask Malek to add this email.</p>
+    <button class="btn" id="gateOut">Sign out</button></div>`);
+  document.getElementById("gateOut").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
+}
+async function loadRole(email) {
+  const cached = lsGet(ROLEKEY);
+  try {
+    const { data, error } = await sb.from("members").select("role").eq("email", email).maybeSingle();
+    if (error) throw error;
+    lsSet(ROLEKEY, data ? { email, role: data.role } : null);
+    return data ? data.role : null;
+  } catch (e) { return cached?.email === email ? cached.role : (navigator.onLine ? null : "viewer"); }
+}
+
+// ---------- people (admin) ----------
+let members = null, memberMsg = "";
+async function loadMembers() {
+  const { data, error } = await sb.from("members").select("email,role").order("email");
+  members = error ? [] : data; if (tab === "plan" && !editing) render();
+}
+function accountCard() {
+  if (!me) return "";
+  const roleName = { admin: "Admin (can edit and manage people)", editor: "Can edit", viewer: "View only" }[me.role];
+  let people = "";
+  if (me.role === "admin") {
+    if (!members) loadMembers();
+    people = `<div style="border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:10px">
+      <span class="label">People with access</span>
+      ${(members || []).map(m => `<div class="ptask mrow"><div><strong>${esc(m.email)}</strong></div>
+        <div class="row"><select data-mrole="${esc(m.email)}" aria-label="Access for ${esc(m.email)}" ${m.email === me.email ? "disabled" : ""}>
+          ${["admin", "editor", "viewer"].map(r => `<option value="${r}" ${m.role === r ? "selected" : ""}>${{ admin: "Admin", editor: "Can edit", viewer: "View only" }[r]}</option>`).join("")}</select>
+          ${m.email === me.email ? "" : `<button class="btn danger" data-mdel="${esc(m.email)}">Remove</button>`}</div></div>`).join("") || `<p class="hint">Loading…</p>`}
+      <div class="grid2">
+        <label class="field"><span class="label">Add email</span><input id="mEmail" type="email" placeholder="name@example.com"></label>
+        <label class="field"><span class="label">Access</span><select id="mRole"><option value="editor">Can edit</option><option value="viewer">View only</option><option value="admin">Admin</option></select></label>
+      </div>
+      <div class="row"><button class="btn primary" data-act="addmember">Add person</button><span class="hint" id="mMsg">${esc(memberMsg)}</span></div>
+      <p class="hint">After adding someone, send them this page's address. They sign in with that email.</p></div>`;
+  }
+  return `<div class="card"><h2 style="font-size:18px">Account</h2>
+    <div class="ptask"><div><strong>${esc(me.email)}</strong><small>${roleName}</small></div><button class="btn" data-act="signout">Sign out</button></div>
+    ${people}</div>`;
+}
+async function memberAction(el) {
+  const a = el.dataset.act;
+  if (a === "signout") { await sb.auth.signOut(); lsSet(ROLEKEY, null); location.reload(); return true; }
+  if (a === "addmember") {
+    const email = document.getElementById("mEmail").value.trim().toLowerCase(), role = document.getElementById("mRole").value;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { memberMsg = "Enter a full email address."; render(); return true; }
+    const { error } = await sb.from("members").upsert({ email, role });
+    memberMsg = error ? "Couldn't add: " + error.message : `Added ${email}.`; await loadMembers(); render(); return true;
+  }
+  if (el.dataset.mdel) {
+    if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "Tap again to remove"; return true; }
+    const { error } = await sb.from("members").delete().eq("email", el.dataset.mdel);
+    memberMsg = error ? "Couldn't remove: " + error.message : `Removed ${el.dataset.mdel}.`; await loadMembers(); render(); return true;
+  }
+  return false;
+}
+
+// ---------- render ----------
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const $ = id => document.getElementById(id);
+const checkSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+function renderHeader() {
+  const p = pod(todayStr());
+  $("podNum").textContent = p === null ? "–" : p;
+  $("podWeek").textContent = p === null ? "post-op" : p < 0 ? "to go" : `week ${Math.max(1, Math.floor((p-1)/7)+1)}`;
+  $("headSub").textContent = plan.surgeryDate
+    ? `Surgery ${parseYmd(plan.surgeryDate).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}${plan.side ? " · " + plan.side + " knee" : ""}`
+    : "No surgery date yet. Set it on the Plan tab.";
+  $("setup").hidden = !!plan.surgeryDate;
+  document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === tab));
+  if (!statusT) $("status").textContent = storeNote();
+}
+
+function dayBar() {
+  const p = pod(sel);
+  return `<div class="daybar">
+    <button class="iconbtn" data-act="prev" aria-label="Previous day">‹</button>
+    <div class="d"><strong>${sel === todayStr() ? "Today" : fmtDay(sel)}</strong><span class="sub">${sel === todayStr() ? fmtDay(sel) : ""}${p !== null ? `${sel === todayStr() ? " · " : ""}Post-op day ${p}` : ""}</span></div>
+    <button class="iconbtn" data-act="next" aria-label="Next day">›</button></div>`;
+}
+
+function rowHtml(o, d, sec) {
+  const it = o.it, at = isChecked(d, o.key), isToday = d === todayStr(), now = nowHM();
+  const late = !at && o.hm !== "—" && (d < todayStr() || (isToday && o.hm < now));
+  const more = [it.detail && it.detail.length > 90 ? it.detail : null, it.note, it.cond ? null : null, it.when && sec !== "question" ? `When: ${it.when}` : null, it.why ? `Why: ${it.why}` : null, it.ev ? `Research: ${it.ev}` : null, it.src ? `Source: ${it.src}` : null].filter(Boolean);
+  const stamp = at && at !== "pre" ? `<span class="stamp">Done ${fmtTime(at)}${o.key.startsWith("g:") && checks.done[it.id] && ymd(new Date(at)) !== d ? " · " + parseYmd(ymd(new Date(at))).toLocaleDateString(undefined,{month:"short",day:"numeric"}) : ""}</span>` : at === "pre" ? `<span class="stamp">Already done</span>` : "";
+  return `<li class="${at ? "done" : ""} ${late ? "late" : ""} ${o.hm === "—" ? "nt" : ""}" style="--c:${SECS[sec].c}">
+    ${o.hm === "—" ? "" : `<span class="time">${fmtHM(o.hm)}</span>`}
+    <div class="what">${o.carry ? `<span class="carry">Still open · ${SECS[sec].label}</span>` : ""}<strong>${esc(it.title)}</strong>
+      ${it.detail ? `<small class="d">${esc(it.detail)}</small>` : ""}${it.cond ? `<span class="cond">${esc(it.cond)}</span>` : ""}
+      ${it.log ? `<button class="linkbtn" data-goto="log">Open the daily log</button>` : ""}
+      ${sec === "question" ? `<button class="linkbtn" data-goto="questions">Write the answer</button>` : ""}
+      ${sec === "routine" && !o.carry ? timerBtn(it, d === todayStr() ? o.key : "") : ""}
+      ${more.length ? `<details><summary>More</summary>${more.map(m => `<div>${esc(m)}</div>`).join("")}</details>` : ""}${stamp}</div>
+    <button class="check" data-toggle="${esc(o.key)}" aria-pressed="${!!at}" aria-label="Mark ${esc(it.title)}${o.hm !== "—" ? " at " + o.hm : ""} ${at ? "not done" : "done"}">${checkSvg}</button></li>`;
+}
+function groupHtml(occ, d, sec) {
+  const it = occ[0].it, isToday = d === todayStr(), now = nowHM();
+  if (occ.length === 1 && occ[0].hm === "—") return rowHtml(occ[0], d, sec);
+  const more = [it.detail && it.detail.length > 90 ? it.detail : null, it.note, it.when ? `When: ${it.when}` : null, it.freq ? `Frequency: ${it.freq}` : null, it.src ? `Source: ${it.src}` : null].filter(Boolean);
+  const n = occ.filter(o => isChecked(d, o.key)).length;
+  return `<li class="g ${n === occ.length ? "done" : ""}" style="--c:${SECS[sec].c}"><div class="what"><strong>${esc(it.title)}</strong>
+    ${it.detail ? `<small class="d">${esc(it.detail)}</small>` : ""}${it.cond ? `<span class="cond">${esc(it.cond)}</span>` : ""}
+    ${it.log ? `<button class="linkbtn" data-goto="log">Open the daily log</button>` : ""}
+    ${more.length ? `<details><summary>More</summary>${more.map(m => `<div>${esc(m)}</div>`).join("")}</details>` : ""}
+    <div class="times">${occ.map(o => { const at = isChecked(d, o.key), late = !at && (d < todayStr() || (isToday && o.hm < now));
+      return `<button class="tbtn ${late ? "late" : ""}" data-toggle="${esc(o.key)}" aria-pressed="${!!at}" aria-label="${esc(it.title)} at ${fmtHM(o.hm)}: ${at ? "done" : "not done"}">${checkSvg}${fmtHM(o.hm)}</button>`; }).join("")}</div>
+    ${sec === "routine" ? timerBtn(it, d === todayStr() ? (occ.filter(o => !isChecked(d, o.key) && o.hm <= now).pop() || occ.find(o => !isChecked(d, o.key)) || {}).key : "") : ""}</div></li>`;
+}
+function prnHtml(it, d) {
+  const log = (days[d]?.prn?.[it.id]) || [], last = log.length ? log[log.length - 1] : null;
+  const nextOk = last ? new Date(new Date(last).getTime() + it.prn * 3600e3) : null;
+  const wait = nextOk && nextOk > new Date();
+  return `<li class="nt" style="--c:var(--meds)">
+    <div class="what"><span class="label">As needed</span><strong>${esc(it.title)}</strong><small>${esc(it.detail)}</small>
+      <small>${log.length ? `${log.length} dose${log.length > 1 ? "s" : ""} logged: ${log.map(fmtTime).join(", ")}` : "No doses logged this day."}${wait ? ` · Label spacing: not before ${nextOk.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}` : ""}</small>
+      ${log.length ? `<button class="linkbtn" data-undoprn="${it.id}">Remove last dose</button>` : ""}
+      <details><summary>More</summary><div>${esc(it.note)}</div><div>Source: ${esc(it.src)}</div></details></div>
+    <button class="dose" data-prn="${it.id}" ${d !== todayStr() ? "disabled" : ""} aria-label="Log a dose of ${esc(it.title)} now">+ Dose</button></li>`;
+}
+function groupBy(list) {
+  const m = new Map(); for (const o of list) { const id = o.it.id; if (!m.has(id)) m.set(id, []); m.get(id).push(o); }
+  return [...m.values()].sort((a, b) => (a[0].hm === "—" ? "00" : a[0].hm).localeCompare(b[0].hm === "—" ? "00" : b[0].hm));
+}
+function viewToday() {
+  const p = pod(sel), di = dayItems(sel), all = checkable(di);
+  const done = all.filter(o => isChecked(sel, o.key)).length;
+  const isToday = sel === todayStr(), now = nowHM();
+  const timed = ["med", "routine", "custom"].flatMap(k => di[k]).filter(o => o.hm !== "—").sort((a, b) => a.hm.localeCompare(b.hm));
+  const next = timed.find(o => !isChecked(sel, o.key) && (!isToday || o.hm >= now));
+  const ph = phaseFor(p);
+  const secs = ["event", "med", "routine", "goal", "question", "custom"].filter(k => di[k].length || (k === "med" && di.prn.length));
+  const shown = k => !filter || filter === k;
+  const section = k => {
+    const list = di[k], doneN = list.filter(o => isChecked(sel, o.key)).length;
+    if (!list.length && !(k === "med" && di.prn.length)) return "";
+    const prn = k === "med" ? di.prn.map(it => prnHtml(it, sel)).join("") : "";
+    return `<div class="sechead"><h2><span class="dot" style="--c:${SECS[k].c}"></span>${SECS[k].label}</h2><span class="num">${list.length ? `${doneN}/${list.length}` : ""}</span></div>
+      <ol class="list">${groupBy(list).map(g => groupHtml(g, sel, k)).join("")}${prn}</ol>`;
+  };
+  return `${dayBar()}
+  ${ph ? `<div class="phase"><span class="label">${p < 0 ? `${-p} day${p === -1 ? "" : "s"} to surgery` : `Post-op day ${p} · week ${Math.max(1, Math.floor((p - 1) / 7) + 1)}`}</span><h2>${esc(ph.title)}</h2>${ph.goals ? `<p>Goals: ${esc(ph.goals)}</p>` : ""}</div>` : ""}
+  ${di.info.length ? `<ul class="notes">${di.info.map(i => `<li><b>${esc(i.title)}.</b> ${esc(i.detail)}</li>`).join("")}</ul>` : ""}
+  <div class="progress"><div class="row" style="justify-content:space-between"><span class="label">${done} of ${all.length} checked</span><span class="num sub">${all.length ? Math.round(done/all.length*100) : 0}%</span></div>
+    <div class="bar"><i style="width:${all.length ? done/all.length*100 : 0}%"></i></div>
+    ${next ? `<div class="next">Next up: <b>${esc(next.it.title)}</b> at <span class="num">${fmtHM(next.hm)}</span></div>` : all.length && done === all.length ? `<div class="next"><b>Everything is checked off.</b></div>` : ""}</div>
+  ${secs.length > 1 ? `<div class="filters"><button class="chip" data-filter="" aria-pressed="${!filter}">All</button>${secs.map(k => `<button class="chip" data-filter="${k}" aria-pressed="${filter===k}" style="--c:${SECS[k].c}"><span class="dot"></span>${SECS[k].label}</button>`).join("")}</div>` : ""}
+  ${secs.filter(shown).map(section).join("") || `<ol class="list"><li style="display:block"><div class="empty">${p === null ? "Set the surgery date on the Plan tab." : "Nothing scheduled for this day."}</div></li></ol>`}
+  ${isToday && di.carry.length && !filter ? `<details class="carrybox"${carryOpen ? " open" : ""}><summary class="sechead" style="margin:6px 2px 8px"><h2><span class="dot" style="--c:var(--warn)"></span>Still open from earlier days</h2><span class="num">${di.carry.length}</span></summary>
+    <ol class="list">${di.carry.map(o => rowHtml({ ...o, carry: true }, sel, o.sec)).join("")}</ol></details>` : ""}
+  <p class="disclaimer">From the surgeon's protocol, the pharmacy labels and the approved review spreadsheet. Follow your surgeon and PT if anything differs. The doses here are a log, not medical advice.</p>`;
+}
+
+function viewQuestions() {
+  const qs = PROTOCOL.questions.slice();
+  const row = q => { const at = isDone(q.id), ans = checks.answers[q.id] ?? q.answer;
+    return `<div class="card qcard" style="gap:8px">
+      <div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap;gap:12px">
+        <div style="min-width:0"><span class="label">${esc(q.id)} · ${esc(q.when)}${q.askBy != null && plan.surgeryDate ? ` · by ${parseYmd(addDays(plan.surgeryDate, q.askBy)).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})}` : ""}</span>
+          <strong style="display:block">${esc(q.title)}</strong><small class="hint">${esc(q.why)} Ask: ${esc(q.who)}.</small></div>
+        <button class="check" style="${at ? "background:var(--good);border-color:var(--good)" : ""}" data-toggle="g:${q.id}" aria-pressed="${!!at}" aria-label="Mark ${esc(q.id)} ${at ? "not asked" : "asked"}">${checkSvg.replace('aria-hidden="true"', `aria-hidden="true" style="opacity:${at ? 1 : 0}"`)}</button></div>
+      <label class="field"><span class="label">Answer</span><textarea data-answer="${q.id}" placeholder="What the surgeon, PT or pharmacist said">${esc(ans)}</textarea></label></div>`; };
+  const open = qs.filter(q => q.askBy != null), answered = qs.filter(q => q.askBy == null);
+  return `<p class="hint">Sorted by when to ask. Questions also show up on the day's checklist the week before they're due.</p>
+    ${open.map(row).join("")}<h2 style="font-size:18px">Answered</h2>${answered.map(row).join("")}`;
+}
+
+const METHODS = { pt: "PT goniometer", app: "Phone goniometer app", incl: "Phone inclinometer", photo: "Photo, measured here" };
+const KNEES = { op: "Operated knee", other: "Other knee" };
+function rom(d, knee) {
+  if (!d) return { flex: null, ext: null };
+  const rs = (d.readings || []).filter(r => r.knee === knee);
+  const fl = rs.filter(r => r.motion === "flex").map(r => r.value), ex = rs.filter(r => r.motion === "ext").map(r => r.value);
+  return {
+    flex: fl.length ? Math.max(...fl) : knee === "op" ? d.flex ?? null : null,
+    ext: ex.length ? Math.min(...ex) : knee === "op" ? d.ext ?? null : null,
+  };
+}
+const inclValue = () => (draft.thigh === "" || draft.shin === "") ? null : Math.round(Number(draft.thigh) + Number(draft.shin));
+const deg = v => v == null ? "–" : `${v}°`;
+const heelDeg = cm => cm == null || cm === "" ? "" : `≈ ${Math.round(Number(cm))}° short of straight`;
+
+function measureInputs() {
+  if (draft.method === "incl") return `
+    <p class="hint">Lie on your back. Lay the phone flat along the outside of your thigh and read its tilt from horizontal. Then do the same along your shin, without moving the leg. Knee bend is the two added together.</p>
+    <div class="grid2">
+      <label class="field"><span class="label">Thigh tilt (°)</span><input id="dThigh" type="number" inputmode="decimal" value="${esc(draft.thigh)}" placeholder="e.g. 40"></label>
+      <label class="field"><span class="label">Shin tilt (°)</span><input id="dShin" type="number" inputmode="decimal" value="${esc(draft.shin)}" placeholder="e.g. 55"></label>
+      <div class="field"><span class="label">Knee angle</span><strong class="num" id="inclOut" style="font-size:22px">${deg(inclValue())}</strong></div>
+    </div>`;
+  if (draft.method === "photo") return `
+    <p class="hint">Take a side-on photo with the camera level with the knee. Then tap the <b>hip</b> (greater trochanter), the <b>knee</b> (outer knee bump), and the <b>ankle</b> (outer ankle bone), in that order. The photo stays on your device and isn't saved.</p>
+    <div class="row"><label class="btn" for="dPhoto" style="display:inline-block">${photo ? "Choose another photo" : "Choose photo"}</label>
+      <input id="dPhoto" type="file" accept="image/*" style="position:absolute;opacity:0;width:1px;height:1px">
+      ${photo ? `<button class="btn" data-act="undopt" ${photo.pts.length ? "" : "disabled"}>Undo last point</button>` : ""}</div>
+    ${photo ? `<canvas id="photoCanvas" style="width:100%;border-radius:8px;touch-action:manipulation;cursor:crosshair"></canvas>
+      <div class="hint" id="photoOut">${["Tap the hip.", "Tap the knee.", "Tap the ankle."][photo.pts.length] || ""}</div>` : ""}
+    <label class="field"><span class="label">Knee angle (°)</span><input id="dValue" type="number" inputmode="decimal" value="${esc(draft.value)}" placeholder="Fills in from the photo"></label>`;
+  return `<label class="field"><span class="label">${draft.motion === "flex" ? "Flexion (°)" : "Extension (°)"}</span>
+    <input id="dValue" type="number" inputmode="decimal" value="${esc(draft.value)}" placeholder="${draft.motion === "flex" ? "e.g. 95" : "0 = straight"}"></label>`;
+}
+
+function viewLog() {
+  const d = dayDoc(sel), op = rom(d, "op"), ot = rom(d, "other");
+  const readings = (d.readings || []);
+  return `${dayBar()}
+  <div class="card">
+    <div class="field"><span class="label">Pain (0 = none, 10 = worst)</span>
+      <div class="pain">${Array.from({length: 11}, (_, i) => `<button data-pain="${i}" aria-pressed="${d.pain === i}">${i}</button>`).join("")}</div></div>
+    <label class="field"><span class="label">Swelling</span><select id="lgSwell">
+      ${["","None","Mild","Moderate","Severe"].map(v => `<option ${d.swelling === v ? "selected" : ""} value="${v}">${v || "Not logged"}</option>`).join("")}</select></label>
+    <div class="grid2">
+      <label class="field"><span class="label">Quad lag (leg sags on a straight leg raise)</span><select id="lgLag">${["","No","Yes"].map(v => `<option ${d.quadLag === v ? "selected" : ""} value="${v}">${v || "Not logged"}</option>`).join("")}</select></label>
+      <label class="field"><span class="label">Front-of-knee / kneeling pain (0-10)</span><select id="lgAkp">${["",0,1,2,3,4,5,6,7,8,9,10].map(v => `<option ${String(d.akp ?? "") === String(v) ? "selected" : ""} value="${v}">${v === "" ? "Not logged" : v}</option>`).join("")}</select></label>
+    </div>
+    <label class="field"><span class="label">Notes</span><textarea id="lgNote" placeholder="How the knee felt, questions for your PT, anything unusual">${esc(d.note || "")}</textarea></label>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:18px">Range of motion</h2>
+    <div class="tablewrap"><table class="hist"><thead><tr><th></th><th>Flexion</th><th>Extension</th></tr></thead><tbody>
+      <tr><td>Operated knee</td><td class="num">${deg(op.flex)}</td><td class="num">${deg(op.ext)}</td></tr>
+      <tr><td>Other knee</td><td class="num">${deg(ot.flex)}</td><td class="num">${deg(ot.ext)}</td></tr>
+      <tr><td><b>Difference</b></td><td class="num"><b>${op.flex != null && ot.flex != null ? deg(ot.flex - op.flex) : "–"}</b></td><td class="num"><b>${op.ext != null && ot.ext != null ? deg(op.ext - ot.ext) : "–"}</b></td></tr>
+    </tbody></table></div>
+    <p class="hint">Extension is degrees short of straight: 0 is fully straight, a negative number is hyperextension. The day's best reading counts. Differences are other knee minus operated knee, so positive means the operated knee is behind.</p>
+    ${readings.length ? `<div>${readings.map(r => `<div class="ptask"><div><strong>${KNEES[r.knee]} · ${r.motion === "flex" ? "flexion" : "extension"} <span class="num">${r.value}°</span></strong>
+      <small>${METHODS[r.method] || r.method}${r.method === "incl" ? ` (thigh ${r.thigh}° + shin ${r.shin}°)` : ""} · ${fmtTime(r.at)}</small></div>
+      <button class="btn" data-rmread="${r.id}" aria-label="Delete reading">Delete</button></div>`).join("")}</div>` : ""}
+    <div style="border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:12px">
+      <span class="label">Add a reading</span>
+      <div class="grid2">
+        <label class="field"><span class="label">Knee</span><select id="dKnee">${Object.entries(KNEES).map(([k,v]) => `<option value="${k}" ${draft.knee===k?"selected":""}>${v}</option>`).join("")}</select></label>
+        <label class="field"><span class="label">Movement</span><select id="dMotion"><option value="flex" ${draft.motion==="flex"?"selected":""}>Flexion (bend)</option><option value="ext" ${draft.motion==="ext"?"selected":""}>Extension (straighten)</option></select></label>
+        <label class="field"><span class="label">Measured with</span><select id="dMethod">${Object.entries(METHODS).map(([k,v]) => `<option value="${k}" ${draft.method===k?"selected":""}>${v}</option>`).join("")}</select></label>
+      </div>
+      ${measureInputs()}
+      <div class="row"><button class="btn primary" data-act="addread">Save reading</button><span class="hint" id="readMsg"></span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:18px">Heel-height difference</h2>
+    <p class="hint">Lie face down with both legs off the end of a bed or table, kneecaps just past the edge. Measure how much higher the operated-side heel sits than the other heel.</p>
+    <div class="grid2">
+      <label class="field"><span class="label">Difference (cm)</span><input id="lgHeel" type="number" inputmode="decimal" step="0.5" min="0" value="${d.heel ?? ""}" placeholder="e.g. 2"></label>
+      <div class="field"><span class="label">Rough extension loss</span><strong id="heelOut" style="font-size:16px">${heelDeg(d.heel) || "–"}</strong></div>
+    </div>
+    <p class="hint">About 1 cm of heel-height difference is roughly 1° of lost extension. It's a rough guide, best for spotting small changes.</p>
+  </div>
+  <p class="disclaimer">This tracker doesn't give medical advice. Contact your surgeon's office with any concerns. The surgeon's documents don't list warning signs yet, so that list is an open question for the office.</p>`;
+}
+
+function drawPhoto() {
+  const c = $("photoCanvas"); if (!c || !photo) return;
+  const { img, pts } = photo; c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const g = c.getContext("2d"), u = Math.max(c.width, c.height) / 300;
+  g.drawImage(img, 0, 0);
+  const css = getComputedStyle(document.documentElement), acc = css.getPropertyValue("--accent").trim() || "#1764c4";
+  g.lineWidth = 2.5 * u; g.strokeStyle = acc; g.fillStyle = acc;
+  if (pts.length > 1) { g.beginPath(); g.moveTo(...pts[0]); pts.slice(1).forEach(p => g.lineTo(...p)); g.stroke(); }
+  pts.forEach(p => { g.beginPath(); g.arc(p[0], p[1], 5 * u, 0, 7); g.fill(); g.lineWidth = 1.5 * u; g.strokeStyle = "#fff"; g.stroke(); g.strokeStyle = acc; g.lineWidth = 2.5 * u; });
+  if (pts.length === 3) {
+    const a = photoAngle(); g.font = `bold ${16 * u}px sans-serif`; g.lineWidth = 4 * u; g.strokeStyle = "#000";
+    const t = `${a}°`; g.strokeText(t, pts[1][0] + 10 * u, pts[1][1] - 10 * u); g.fillStyle = "#fff"; g.fillText(t, pts[1][0] + 10 * u, pts[1][1] - 10 * u);
+  }
+}
+function photoAngle() {
+  const [h, k, a] = photo.pts, v1 = [h[0]-k[0], h[1]-k[1]], v2 = [a[0]-k[0], a[1]-k[1]];
+  const cos = (v1[0]*v2[0] + v1[1]*v2[1]) / (Math.hypot(...v1) * Math.hypot(...v2));
+  return Math.round(180 - Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI);
+}
+
+function taskForm(t) {
+  return `<div class="card" id="editForm">
+    <h2 style="font-size:18px">${t._new ? "Add a task" : "Edit task"}</h2>
+    <div class="grid2">
+      <label class="field"><span class="label">Name</span><input id="fName" value="${esc(t.name)}" placeholder="e.g. Extra stretching"></label>
+      <label class="field"><span class="label">Category</span><select id="fCat">${Object.entries(CATS).map(([k,v]) => `<option value="${k}" ${t.cat===k?"selected":""}>${v.label}</option>`).join("")}</select></label>
+    </div>
+    <label class="field"><span class="label">Details</span><input id="fDetail" value="${esc(t.detail)}" placeholder="Dose, reps, instructions"></label>
+    <div class="field"><span class="label">Times of day</span>
+      <div class="timesbox">${t.times.map((hm, i) => `<span>${fmtHM(hm)}<button data-rmtime="${i}" aria-label="Remove ${hm}">×</button></span>`).join("")}
+        <input type="time" id="fTime" aria-label="Add a time" style="padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--bg)"><button class="btn" data-act="addtime">Add time</button></div>
+      <span class="hint">Leave empty for a task you do once at any time of day.</span></div>
+    <div class="grid2">
+      <label class="field"><span class="label">Repeats</span><select id="fFreq">
+        <option value="daily" ${t.freq==="daily"?"selected":""}>Every day</option>
+        <option value="days" ${t.freq==="days"?"selected":""}>On certain weekdays</option>
+        <option value="once" ${t.freq==="once"?"selected":""}>One date only</option></select></label>
+      ${t.freq === "once" ? `<label class="field"><span class="label">Date</span><input type="date" id="fDate" value="${t.date || sel}"></label>` : `
+      <label class="field"><span class="label">From post-op day</span><input type="number" id="fStart" value="${t.startDay ?? 0}"></label>
+      <label class="field"><span class="label">Until post-op day</span><input type="number" id="fEnd" value="${t.endDay ?? ""}" placeholder="Ongoing"></label>`}
+    </div>
+    ${t.freq === "days" ? `<div class="dows">${DOW.map((n,i) => `<label><input type="checkbox" data-dow="${i}" ${t.dow.includes(i)?"checked":""}>${n}</label>`).join("")}</div>` : ""}
+    <div class="row"><button class="btn primary" data-act="savetask">Save task</button><button class="btn" data-act="canceltask">Cancel</button>
+      ${t._new ? "" : `<button class="btn danger" data-act="deltask" style="margin-left:auto">Delete</button>`}</div>
+  </div>`;
+}
+
+function describe(t) {
+  const when = t.times.length ? t.times.map(fmtHM).join(", ") : "Any time";
+  let span = t.freq === "once" ? `on ${t.date ? parseYmd(t.date).toLocaleDateString(undefined,{month:"short",day:"numeric"}) : "?"}` :
+    (t.freq === "days" ? t.dow.map(i => DOW[i]).join("/") || "No days picked" : "daily");
+  if (t.freq !== "once") span += (t.endDay !== null && t.endDay !== "") ? ` · days ${t.startDay}–${t.endDay}` : t.startDay ? ` · from day ${t.startDay}` : "";
+  return `${when} · ${span}`;
+}
+
+function viewPlan() {
+  if (editing) return taskForm(editing);
+  const acct = accountCard();
+  const sd = plan.surgeryDate, dt = n => sd ? parseYmd(addDays(sd, n)).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) : `day ${n}`;
+  const ev = PROTOCOL.items.filter(i => i.sec === "event" || i.sec === "goal").filter(i => !i.persist).sort((a, b) => a.start - b.start);
+  return `${acct}<div class="card">
+    <div class="grid2">
+      <label class="field"><span class="label">Surgery date</span><input type="date" id="pDate" value="${sd || ""}"></label>
+      <label class="field"><span class="label">Knee</span><select id="pSide">${["","Left","Right"].map(v => `<option ${plan.side===v?"selected":""} value="${v}">${v || "Not set"}</option>`).join("")}</select></label>
+    </div>
+    <p class="hint">Post-op day 0 is the day of surgery. Every protocol date follows from this date, except the first post-op visit (fixed for Nov 24, 2026). Patellar tendon graft.</p>
+  </div>
+  <div class="card plan"><h2 style="font-size:18px">Phases</h2>
+    ${PROTOCOL.phases.map(x => `<div class="ptask"><div><strong>${esc(x.title)}</strong><small>${dt(x.start)}${x.end != null ? " – " + dt(x.end) : " onward"}</small>${x.goals ? `<small>Goals: ${esc(x.goals)}</small>` : ""}</div></div>`).join("")}</div>
+  <div class="card plan"><h2 style="font-size:18px">Timeline</h2>
+    ${ev.map(i => `<div class="ptask"><div><strong>${esc(i.title)}</strong><small>${dt(i.start)}${i.end != null && i.end !== i.start ? " – " + dt(i.end) : ""} · ${SECS[i.sec].label}</small>${i.cond ? `<small style="color:var(--warn)">${esc(i.cond)}</small>` : ""}</div>${isDone(i.id) ? `<span class="hint">Done</span>` : ""}</div>`).join("")}</div>
+  <div class="row" style="justify-content:space-between"><h2 style="font-size:20px">My tasks</h2><button class="btn primary" data-act="newtask">Add task</button></div>
+  <div class="card plan">${plan.tasks.map(t => `<div class="ptask"><div><strong>${esc(t.name)}</strong><small>${esc(describe(t))}</small>${t.detail ? `<small>${esc(t.detail)}</small>` : ""}</div><button class="btn" data-edit="${t.id}">Edit</button></div>`).join("") || `<div class="empty">No tasks of your own yet.</div>`}</div>`;
+}
+
+function viewHistory() {
+  const end = todayStr(), list = Array.from({length: 14}, (_, i) => addDays(end, i - 13));
+  const rows = list.map(d => { const dd = days[d] || { done: {} }, s = dayStats(d);
+    return { d, pct: s.tot ? s.n/s.tot : null, n: s.n, tot: s.tot, ...dd }; });
+  const W = 420, H = 180, L = 40, B = 26, T = 10, bw = (W - L - 8) / 14;
+  const y = v => T + (H - T - B) * (1 - v);
+  const bars = rows.map((r, i) => r.pct === null ? "" : `<rect x="${L + i*bw + 3}" y="${y(r.pct)}" width="${bw - 6}" height="${(H - T - B) * r.pct}" rx="3" fill="var(--good)" opacity=".75"><title>${r.d}: ${r.n}/${r.tot}</title></rect>`).join("");
+  const painPts = rows.map((r, i) => r.pain == null ? null : [L + i*bw + bw/2, y(r.pain/10)]).filter(Boolean);
+  const line = painPts.length > 1 ? `<polyline points="${painPts.map(p => p.join(",")).join(" ")}" fill="none" stroke="var(--appt)" stroke-width="2.5"/>` : "";
+  const dots = painPts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--appt)"/>`).join("");
+  const grid = [0, .5, 1].map(v => `<line x1="${L}" x2="${W-8}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end" font-size="13" fill="var(--muted)" font-family="var(--mono)">${v*100}%</text>`).join("");
+  const xl = rows.map((r, i) => i % 2 ? "" : `<text x="${L + i*bw + bw/2}" y="${H-8}" text-anchor="middle" font-size="13" fill="var(--muted)" font-family="var(--mono)">${parseYmd(r.d).getMonth()+1}/${parseYmd(r.d).getDate()}</text>`).join("");
+  return `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="font-size:18px">Last 14 days</h2>
+    <div class="row hint"><span class="row" style="gap:4px"><span class="dot" style="--c:var(--good)"></span>Tasks done</span><span class="row" style="gap:4px"><span class="dot" style="--c:var(--appt)"></span>Pain (0–10)</span></div></div>
+    <div class="chartbox"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily completion and pain, last 14 days">${grid}${bars}${line}${dots}${xl}</svg></div></div>
+  ${romSection(rows)}
+  <div class="card"><div class="tablewrap"><table class="hist"><thead><tr><th>Day</th><th>Post-op</th><th>Done</th><th>Pain</th><th>Swelling</th><th>Flex°</th><th>Ext°</th><th>Flex diff</th><th>Ext diff</th><th>Heel cm</th></tr></thead><tbody>
+    ${rows.slice().reverse().map(r => { const op = rom(days[r.d], "op"), ot = rom(days[r.d], "other");
+      return `<tr><td>${parseYmd(r.d).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})}</td><td class="num">${pod(r.d) ?? "–"}</td><td class="num">${r.tot ? `${r.n}/${r.tot}` : "–"}</td><td class="num">${r.pain ?? "–"}</td><td>${r.swelling || "–"}</td><td class="num">${op.flex ?? "–"}</td><td class="num">${op.ext ?? "–"}</td><td class="num">${op.flex != null && ot.flex != null ? ot.flex - op.flex : "–"}</td><td class="num">${op.ext != null && ot.ext != null ? op.ext - ot.ext : "–"}</td><td class="num">${r.heel ?? "–"}</td></tr>`; }).join("")}
+  </tbody></table></div><p class="hint">Diff columns compare the same day's readings of both knees. Positive means the operated knee is behind.</p></div>`;
+}
+
+function latest(knee, motion) {
+  const all = Object.keys(days).sort().reverse();
+  for (const d of all) { const v = rom(days[d], knee)[motion]; if (v != null) return { v, d }; }
+  return null;
+}
+function romSection(rows) {
+  const of = latest("op", "flex"), oe = latest("op", "ext"), tf = latest("other", "flex"), te = latest("other", "ext");
+  const heel = Object.keys(days).sort().reverse().find(d => days[d].heel != null);
+  const tile = (label, a, b, lowerIsBetter) => `<div class="field" style="gap:2px"><span class="label">${label}</span>
+    <strong class="num" style="font-size:26px;font-family:var(--display)">${a ? a.v + "°" : "–"}</strong>
+    <span class="hint">${b ? `Other knee ${b.v}° · ${lowerIsBetter ? a ? `${a.v - b.v}° behind` : "" : a ? `${b.v - a.v}° behind` : ""}` : "Log the other knee to compare"}</span></div>`;
+  const W = 420, H = 190, L = 40, B = 26, T = 10, bw = (W - L - 8) / 14, max = 150;
+  const y = v => T + (H - T - B) * (1 - Math.max(-10, Math.min(max, v)) / max);
+  const pts = rows.map((r, i) => { const v = rom(days[r.d], "op").flex; return v == null ? null : [L + i*bw + bw/2, y(v), v]; }).filter(Boolean);
+  const ref = tf ? `<line x1="${L}" x2="${W-8}" y1="${y(tf.v)}" y2="${y(tf.v)}" stroke="var(--muted)" stroke-dasharray="5 4"/><text x="${W-10}" y="${y(tf.v)-5}" text-anchor="end" font-size="13" fill="var(--muted)">Other knee ${tf.v}°</text>` : "";
+  const grid = [0, 50, 100, 150].map(v => `<line x1="${L}" x2="${W-8}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end" font-size="13" fill="var(--muted)" font-family="var(--mono)">${v}°</text>`).join("");
+  const xl = rows.map((r, i) => i % 2 ? "" : `<text x="${L + i*bw + bw/2}" y="${H-8}" text-anchor="middle" font-size="13" fill="var(--muted)" font-family="var(--mono)">${parseYmd(r.d).getMonth()+1}/${parseYmd(r.d).getDate()}</text>`).join("");
+  const line = pts.length > 1 ? `<polyline points="${pts.map(p => p[0] + "," + p[1]).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>` : "";
+  const dots = pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="${i === pts.length-1 ? 5 : 3.5}" fill="var(--accent)"><title>${p[2]}°</title></circle>`).join("");
+  return `<div class="card"><h2 style="font-size:18px">Range of motion</h2>
+    <div class="grid2">${tile("Flexion (latest)", of, tf, false)}${tile("Extension (latest)", oe, te, true)}
+      <div class="field" style="gap:2px"><span class="label">Heel-height diff</span><strong class="num" style="font-size:26px;font-family:var(--display)">${heel ? days[heel].heel + " cm" : "–"}</strong><span class="hint">${heel ? heelDeg(days[heel].heel) : "Log it on the Daily log tab"}</span></div></div>
+    <div class="chartbox"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Operated knee flexion, last 14 days">${grid}${ref}${line}${dots}${xl}</svg></div>
+    <p class="hint">Operated knee flexion, best reading each day.</p></div>`;
+}
+
+function render() {
+  renderHeader();
+  $("view").innerHTML = `<div style="display:flex;flex-direction:column;gap:16px">${({ today: viewToday, log: viewLog, questions: viewQuestions, plan: viewPlan, history: viewHistory })[tab]()}</div>`;
+  drawPhoto();
+}
+
+// ---------- events ----------
+document.querySelector("nav.tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; tab = b.dataset.tab; editing = null; confirmReset = false; render(); });
+$("setupSave").addEventListener("click", () => { const v = $("setupDate").value; if (!v) return; plan.surgeryDate = v; savePlan(); render(); });
+
+function readForm() {
+  if (!editing) return;
+  const g = id => $(id);
+  editing.name = g("fName").value; editing.cat = g("fCat").value; editing.detail = g("fDetail").value;
+  if (g("fDate")) editing.date = g("fDate").value;
+  if (g("fStart")) editing.startDay = Number(g("fStart").value) || 0;
+  if (g("fEnd")) editing.endDay = g("fEnd").value === "" ? null : Number(g("fEnd").value);
+  const dows = document.querySelectorAll("[data-dow]"); if (dows.length) editing.dow = [...dows].filter(x => x.checked).map(x => Number(x.dataset.dow));
+}
+
+$("view").addEventListener("click", async e => {
+  const el = e.target.closest("button"); if (!el) return;
+  const a = el.dataset.act;
+  if ((a === "signout" || a === "addmember" || el.dataset.mdel) && await memberAction(el)) return;
+  if (a === "prev" || a === "next") { sel = addDays(sel, a === "prev" ? -1 : 1); return render(); }
+  if (el.dataset.toggle) { const k = el.dataset.toggle;
+    if (k.startsWith("g:")) { const id = k.slice(2); if (checks.done[id]) delete checks.done[id]; else checks.done[id] = new Date().toISOString(); saveChecks(); return render(); }
+    const dd = dayDoc(sel), kk = k.slice(2); if (dd.done[kk]) delete dd.done[kk]; else dd.done[kk] = new Date().toISOString(); saveDay(sel); return render(); }
+  if (el.dataset.prn) { const dd = dayDoc(sel); ((dd.prn ||= {})[el.dataset.prn] ||= []).push(new Date().toISOString()); saveDay(sel); setStatus("Dose logged"); return render(); }
+  if (el.dataset.undoprn) { const l = dayDoc(sel).prn?.[el.dataset.undoprn]; if (l?.length) { l.pop(); saveDay(sel); } return render(); }
+  if (el.dataset.timer) return openTimer(el.dataset.timer, el.dataset.tkey);
+  if (el.dataset.goto) { tab = el.dataset.goto; window.scrollTo(0, 0); return render(); }
+  if ("filter" in el.dataset) { filter = el.dataset.filter || null; return render(); }
+  if ("pain" in el.dataset) { const d = dayDoc(sel), v = Number(el.dataset.pain); d.pain = d.pain === v ? null : v; saveDay(sel); return render(); }
+  if (a === "newtask") { editing = { id: uid(), cat: "meds", name: "", detail: "", times: [], freq: "daily", dow: [], date: "", startDay: 0, endDay: null, _new: true }; return render(); }
+  if (el.dataset.edit) { const t = plan.tasks.find(x => x.id === el.dataset.edit); editing = structuredClone(t); return render(); }
+  if (a === "addtime") { readForm(); const v = $("fTime").value; if (v && !editing.times.includes(v)) { editing.times.push(v); editing.times.sort(); } return render(); }
+  if ("rmtime" in el.dataset) { readForm(); editing.times.splice(Number(el.dataset.rmtime), 1); return render(); }
+  if (a === "savetask") { readForm(); if (!editing.name.trim()) { $("fName").focus(); $("fName").placeholder = "Give the task a name"; return; }
+    const t = { ...editing }; delete t._new; const i = plan.tasks.findIndex(x => x.id === t.id); if (i >= 0) plan.tasks[i] = t; else plan.tasks.push(t);
+    editing = null; savePlan(); setStatus("Task saved"); return render(); }
+  if (a === "canceltask") { editing = null; return render(); }
+  if (a === "deltask") { plan.tasks = plan.tasks.filter(x => x.id !== editing.id); editing = null; savePlan(); return render(); }
+  if (a === "undopt") { if (!photo?.pts.length) return; readDraft(); photo.pts.pop(); draft.value = ""; return render(); }
+  if (el.dataset.rmread) { const d = dayDoc(sel); d.readings = (d.readings || []).filter(r => r.id !== el.dataset.rmread); saveDay(sel); return render(); }
+  if (a === "addread") { readDraft();
+    const v = draft.method === "incl" ? inclValue() : (draft.value === "" ? null : Number(draft.value));
+    if (v == null || !isFinite(v)) { $("readMsg").textContent = draft.method === "incl" ? "Enter both the thigh and shin tilt." : draft.method === "photo" ? "Mark hip, knee and ankle on a photo first." : "Enter an angle in degrees."; return; }
+    const d = dayDoc(sel), r = { id: uid(), knee: draft.knee, motion: draft.motion, method: draft.method, value: Math.round(v), at: new Date().toISOString() };
+    if (draft.method === "incl") { r.thigh = Number(draft.thigh); r.shin = Number(draft.shin); }
+    (d.readings ||= []).push(r); saveDay(sel);
+    draft = { ...draft, value: "", thigh: "", shin: "" }; photo = null; setStatus("Reading saved"); return render(); }
+});
+function readDraft() {
+  if ($("dValue")) draft.value = $("dValue").value;
+  if ($("dThigh")) draft.thigh = $("dThigh").value;
+  if ($("dShin")) draft.shin = $("dShin").value;
+}
+$("view").addEventListener("toggle", e => { if (e.target.classList?.contains("carrybox")) carryOpen = e.target.open; }, true);
+$("view").addEventListener("input", e => {
+  const id = e.target.id;
+  if (id === "dThigh" || id === "dShin") { readDraft(); $("inclOut").textContent = deg(inclValue()); }
+  if (id === "lgHeel") $("heelOut").textContent = heelDeg(e.target.value) || "–";
+});
+$("view").addEventListener("pointerup", e => {
+  if (e.target.id !== "photoCanvas" || !photo || photo.pts.length >= 3) return;
+  const c = e.target, b = c.getBoundingClientRect();
+  photo.pts.push([(e.clientX - b.left) * c.width / b.width, (e.clientY - b.top) * c.height / b.height]);
+  readDraft();
+  if (photo.pts.length === 3) draft.value = String(photoAngle());
+  render();
+});
+$("view").addEventListener("change", async e => {
+  const id = e.target.id;
+  if (e.target.dataset.mrole) { const { error } = await sb.from("members").update({ role: e.target.value }).eq("email", e.target.dataset.mrole); memberMsg = error ? "Couldn't change access: " + error.message : "Access updated."; await loadMembers(); return render(); }
+  if (id === "fFreq") { readForm(); editing.freq = e.target.value; return render(); }
+  if (id === "pDate") { plan.surgeryDate = e.target.value || null; savePlan(); return render(); }
+  if (id === "pSide") { plan.side = e.target.value; savePlan(); return renderHeader(); }
+  const d = dayDoc(sel);
+  if (id === "lgSwell") { d.swelling = e.target.value; saveDay(sel); }
+  if (id === "lgLag") { d.quadLag = e.target.value; saveDay(sel); }
+  if (id === "lgAkp") { d.akp = e.target.value === "" ? null : Number(e.target.value); saveDay(sel); }
+  if (id === "lgHeel") { d.heel = e.target.value === "" ? null : Number(e.target.value); saveDay(sel); }
+  if (id === "dKnee" || id === "dMotion" || id === "dMethod") { readDraft(); draft[{ dKnee: "knee", dMotion: "motion", dMethod: "method" }[id]] = e.target.value; return render(); }
+  if (id === "dPhoto") { const f = e.target.files?.[0]; if (!f) return;
+    const r = new FileReader(); r.onload = () => { const img = new Image(); img.onload = () => { readDraft(); photo = { img, pts: [] }; draft.value = ""; render(); }; img.src = r.result; }; r.readAsDataURL(f); }
+  if (id === "lgNote") { d.note = e.target.value; saveDay(sel); }
+  if (e.target.dataset.answer) { checks.answers[e.target.dataset.answer] = e.target.value; saveChecks(); setStatus("Answer saved"); }
+});
+// ---- Interval timer: hold / relax reps, sets and set breaks, with beeps and vibration ----
+// Presets come from the protocol's dose column. "ns" = the protocol doesn't state it, so the preset is a starting point.
+const TIMER_PRESETS = {
+  P01: { sets: 1, reps: 1, hold: 720, holdLabel: "Heel prop" },
+  P02: { sets: 1, reps: 10, hold: 5, rest: 5, holdLabel: "Bend", restLabel: "Straighten", ns: "Reps not stated" },
+  P03: { sets: 3, reps: 10, hold: 6, rest: 3, setRest: 30, holdLabel: "Squeeze", restLabel: "Relax", ns: "Sets and reps not stated; uses the post-op quad set dose" },
+  P04: { sets: 1, reps: 1, hold: 900, holdLabel: "Ride" },
+  R01: { sets: 1, reps: 1, hold: 1200, holdLabel: "Ice on" },
+  R05: { sets: 1, reps: 1, hold: 720, holdLabel: "Heel prop" },
+  R06: { sets: 1, reps: 10, hold: 5, rest: 5, holdLabel: "Straighten", restLabel: "Relax", ns: "Reps not stated" },
+  R07: { sets: 1, reps: 1, hold: 600, holdLabel: "Let it bend" },
+  R08: { sets: 3, reps: 10, hold: 6, rest: 3, setRest: 30, holdLabel: "Squeeze", restLabel: "Relax" },
+  R09: { sets: 8, reps: 10, hold: 6, rest: 3, setRest: 30, holdLabel: "Lift and hold", restLabel: "Lower" },
+  R10: { sets: 3, reps: 10, hold: 5, rest: 3, setRest: 30, holdLabel: "Pull", restLabel: "Relax", ns: "Dose not stated" },
+  R14: { sets: 1, reps: 1, hold: 600, holdLabel: "Ride", ns: "Start at 5 min, build to 20" },
+  R15: { sets: 3, reps: 10, hold: 6, rest: 3, setRest: 30, holdLabel: "Rise and hold", restLabel: "Lower" },
+  R16: { sets: 1, reps: 10, hold: 5, rest: 5, holdLabel: "Slide and hold", restLabel: "Return", ns: "Reps not stated" },
+  R17: { sets: 1, reps: 1, hold: 300, holdLabel: "Mobilize", ns: "Dose not stated" },
+  R18: { sets: 3, reps: 1, hold: 30, setRest: 30, holdLabel: "Balance", ns: "Dose not stated" },
+  R19: { sets: 3, reps: 10, hold: 3, rest: 2, setRest: 45, holdLabel: "Down and hold", restLabel: "Up", ns: "Dose not stated" },
+  R20: { sets: 3, reps: 10, hold: 3, rest: 2, setRest: 45, holdLabel: "Curl", restLabel: "Lower", ns: "Dose not stated" },
+  R21: { sets: 1, reps: 1, hold: 900, holdLabel: "Walk", ns: "Duration not stated" },
+  R22: { sets: 1, reps: 1, hold: 1200, holdLabel: "Pool work", ns: "Duration not stated" },
+  R24: { sets: 1, reps: 1, hold: 900, holdLabel: "Jog", ns: "Duration not stated" },
+  R26: { sets: 4, reps: 1, hold: 30, setRest: 60, holdLabel: "Drill", ns: "Dose not stated" },
+};
+const T_DEFAULT = { sets: 1, reps: 1, hold: 0, rest: 0, setRest: 0, holdLabel: "Work", restLabel: "Relax" };
+const timerCfg = id => ({ ...T_DEFAULT, ...TIMER_PRESETS[id], ...(plan.timers?.[id] || {}) });
+const hasTimer = it => it.sec === "routine" && !!TIMER_PRESETS[it.id];
+const timerSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5"/></svg>';
+const timerBtn = (it, key) => hasTimer(it) ? `<button class="timerbtn" data-timer="${esc(it.id)}" data-tkey="${esc(key || "")}">${timerSvg}Start timer</button>` : "";
+const mmss = s => { s = Math.max(0, Math.ceil(s)); return s >= 60 ? `${Math.floor(s / 60)}:${pad(s % 60)}` : String(s); };
+const durTxt = s => s >= 60 ? `${Math.floor(s / 60)} min${s % 60 ? " " + (s % 60) + " s" : ""}` : `${s} s`;
+function buildSteps(c) {
+  const st = [{ kind: "ready", label: "Get ready", dur: 5, set: 1, rep: 1 }];
+  for (let s = 1; s <= c.sets; s++) for (let r = 1; r <= c.reps; r++) {
+    st.push({ kind: "hold", label: c.holdLabel, dur: c.hold, set: s, rep: r });
+    if (r < c.reps && c.rest > 0) st.push({ kind: "rest", label: c.restLabel, dur: c.rest, set: s, rep: r });
+    if (r === c.reps && s < c.sets && c.setRest > 0) st.push({ kind: "break", label: "Set break", dur: c.setRest, set: s, rep: r });
+  }
+  return st;
+}
+const totalSecs = c => buildSteps(c).slice(1).reduce((a, x) => a + x.dur, 0);
+let T = null; // { id, key, cfg, steps, i, end, left, paused, state: "setup"|"run"|"done", edit }
+let audioCtx = null, wakeLock = null, tTick = null;
+function beep(freq, ms, n = 1) {
+  try { audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    for (let k = 0; k < n; k++) { const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t0 = audioCtx.currentTime + k * (ms / 1000 + 0.08);
+      o.frequency.value = freq; o.type = "sine"; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + ms / 1000);
+      o.connect(g).connect(audioCtx.destination); o.start(t0); o.stop(t0 + ms / 1000 + 0.02); } } catch {}
+}
+const buzz = p => { try { navigator.vibrate?.(p); } catch {} };
+async function keepAwake(on) {
+  try { if (on && !wakeLock && navigator.wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener?.("release", () => wakeLock = null); }
+    if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; } } catch {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && T?.state === "run" && !T.paused) keepAwake(true); });
+function openTimer(id, key) {
+  const it = PROTOCOL.items.find(i => i.id === id); if (!it) return;
+  T = { id, key, it, cfg: timerCfg(id), state: "setup" };
+  $("timer").hidden = false; document.body.style.overflow = "hidden"; drawTimer(); $("timer").querySelector("button")?.focus();
+}
+function closeTimer() {
+  clearInterval(tTick); tTick = null; keepAwake(false); T = null; $("timer").hidden = true; $("timer").innerHTML = ""; document.body.style.overflow = ""; render();
+}
+function startStep(i) {
+  T.i = i; const st = T.steps[i]; T.end = Date.now() + st.dur * 1000; T.lastSec = null;
+  if (st.kind === "hold") { beep(880, 220); buzz(250); } else if (st.kind === "rest") { beep(520, 180); buzz(100); } else if (st.kind === "break") { beep(520, 160, 2); buzz([100, 80, 100]); }
+}
+function runTimer() {
+  T.steps = buildSteps(T.cfg); T.state = "run"; T.paused = false; startStep(0); keepAwake(true);
+  clearInterval(tTick); tTick = setInterval(tickTimer, 100); drawTimer();
+}
+function tickTimer() {
+  if (!T || T.state !== "run" || T.paused) return;
+  let left = (T.end - Date.now()) / 1000;
+  while (left <= 0) { // catch up if the phone slept
+    if (T.i + 1 >= T.steps.length) { T.state = "done"; clearInterval(tTick); keepAwake(false); beep(990, 180, 3); buzz([200, 100, 200, 100, 400]); return drawTimer(); }
+    const over = -left; startStep(T.i + 1); T.end -= over * 1000; left = (T.end - Date.now()) / 1000;
+  }
+  const sec = Math.ceil(left);
+  if (sec !== T.lastSec) { T.lastSec = sec; if (sec <= 3 && T.steps[T.i].dur > 3) beep(660, 70); drawTimer(); }
+  else drawRing(left);
+}
+function drawRing(left) {
+  const st = T.steps[T.i], ring = $("timer").querySelector(".prog"); if (!ring) return;
+  const C = 2 * Math.PI * 54; ring.style.strokeDashoffset = String(C * (1 - Math.max(0, left) / st.dur));
+}
+function timerFields(c) {
+  const f = (k, label, unit, min, max) => `<label class="field"><span class="label">${label}${unit ? ` (${unit})` : ""}</span><input type="number" inputmode="numeric" min="${min}" max="${max}" data-tf="${k}" value="${k === "hold" && c.hold >= 120 && c.hold % 60 === 0 ? c.hold / 60 : c[k]}"></label>`;
+  const longHold = c.hold >= 120 && c.hold % 60 === 0;
+  return `<div class="tgrid">${f("sets", "Sets", "", 1, 20)}${f("reps", "Reps per set", "", 1, 50)}
+    <label class="field"><span class="label">${esc(c.holdLabel)} (${longHold ? "min" : "sec"})</span><input type="number" inputmode="numeric" min="1" max="${longHold ? 120 : 600}" data-tf="hold" data-unit="${longHold ? 60 : 1}" value="${longHold ? c.hold / 60 : c.hold}"></label>
+    ${f("rest", `${c.restLabel} between reps`, "sec", 0, 600)}${f("setRest", "Break between sets", "sec", 0, 900)}</div>`;
+}
+function drawTimer() {
+  if (!T) return;
+  const el = $("timer"), c = T.cfg, it = T.it, color = SECS.routine.c;
+  const head = `<div class="thead"><div><span class="label">Timer</span><h2>${esc(it.title)}</h2></div><button class="btn" data-tact="close">${T.state === "run" ? "Stop" : "Close"}</button></div>`;
+  if (T.state === "setup") {
+    const pre = TIMER_PRESETS[T.id], custom = !!plan.timers?.[T.id];
+    el.innerHTML = `<div class="tw">${head}
+      <div class="card"><div><span class="label">Protocol dose</span><div>${esc([it.freq, it.detail?.includes(" · ") ? it.detail.split(" · ")[0] : ""].filter(Boolean).join(" · "))}</div>${pre.ns ? `<small class="hint" style="color:var(--warn)">${esc(pre.ns)}. Check with PT and adjust.</small>` : ""}</div>
+      ${timerFields(c)}
+      <div class="sum" id="tsum">${c.sets} set${c.sets > 1 ? "s" : ""} of ${c.reps} rep${c.reps > 1 ? "s" : ""} · about ${durTxt(totalSecs(c))} total</div>
+      <p class="hint" style="margin:0">Changes are saved for everyone who uses this tracker.${custom ? ` <button class="linkbtn" data-tact="reset">Back to the protocol preset</button>` : ""}</p></div>
+      <div class="ctl"><button class="btn primary" data-tact="start">Start</button></div>
+      <p class="hint" style="margin:0;text-align:center">Turn the sound up. The phone beeps and vibrates at each change and counts down the last 3 seconds.</p></div>`;
+    return;
+  }
+  if (T.state === "done") {
+    const occ = T.key && T.key.startsWith("d:") ? T.key : null, already = occ && dayDoc(todayStr()).done[occ.slice(2)];
+    el.innerHTML = `<div class="tw">${head}<div class="card" style="text-align:center;align-items:center"><div class="tphase" style="--tc:var(--good);font-family:var(--display);font-size:30px;font-weight:800;color:var(--good)">All done</div>
+      <div>${c.sets} set${c.sets > 1 ? "s" : ""} of ${c.reps} rep${c.reps > 1 ? "s" : ""} finished.</div>
+      <div class="ctl">${occ && !already ? `<button class="btn primary" data-tact="markdone">Check it off for ${occ.includes("@") && occ.split("@")[1] !== "—" ? fmtHM(occ.split("@")[1]) : "today"}</button>` : already ? `<span class="hint">Already checked off.</span>` : ""}<button class="btn" data-tact="again">Run again</button></div></div></div>`;
+    return;
+  }
+  const st = T.steps[T.i], left = T.paused ? T.left : (T.end - Date.now()) / 1000;
+  const holds = T.steps.filter(x => x.kind === "hold").length, doneHolds = T.steps.slice(0, T.i).filter(x => x.kind === "hold").length;
+  const tc = st.kind === "hold" ? color : st.kind === "ready" ? "var(--muted)" : "var(--accent)";
+  const C = 2 * Math.PI * 54, next = T.steps[T.i + 1];
+  el.innerHTML = `<div class="tw">${head}
+    <div class="ring" style="--tc:${tc}"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="54" fill="none" stroke="var(--line)" stroke-width="8"/>
+      <circle class="prog" cx="60" cy="60" r="54" fill="none" stroke="${tc}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - Math.max(0, left) / st.dur)}"/></svg>
+      <div class="mid" aria-live="polite"><div class="tphase">${esc(st.label)}</div><div class="count ${left >= 600 ? "long" : ""}">${mmss(left)}</div>${T.paused ? `<div class="label">Paused</div>` : ""}</div></div>
+    <div class="meta"><div><b>${st.set}/${c.sets}</b>set</div><div><b>${st.kind === "ready" ? 0 : st.rep}/${c.reps}</b>rep</div><div><b>${Math.round(100 * doneHolds / holds)}%</b>done</div></div>
+    <div class="ctl"><button class="btn primary" data-tact="${T.paused ? "resume" : "pause"}">${T.paused ? "Resume" : "Pause"}</button><button class="btn" data-tact="skip">Skip ›</button></div>
+    ${next ? `<p class="hint" style="text-align:center;margin:0">Next: ${esc(next.label)} ${durTxt(next.dur)}</p>` : ""}</div>`;
+}
+function readTimerFields() {
+  const c = { ...T.cfg };
+  $("timer").querySelectorAll("[data-tf]").forEach(inp => { const k = inp.dataset.tf, v = Math.round(Number(inp.value) * Number(inp.dataset.unit || 1));
+    if (Number.isFinite(v)) c[k] = Math.max(k === "rest" || k === "setRest" ? 0 : 1, v); });
+  return c;
+}
+$("timer").addEventListener("input", e => { if (!T || T.state !== "setup" || !e.target.dataset.tf) return; const c = readTimerFields(), s = $("tsum");
+  if (s) s.textContent = `${c.sets} set${c.sets > 1 ? "s" : ""} of ${c.reps} rep${c.reps > 1 ? "s" : ""} · about ${durTxt(totalSecs(c))} total`; });
+$("timer").addEventListener("keydown", e => { if (e.key === "Escape" && T?.state !== "run") closeTimer(); });
+$("timer").addEventListener("click", e => {
+  const b = e.target.closest("[data-tact]"); if (!b || !T) return; const a = b.dataset.tact;
+  if (a === "close") return closeTimer();
+  if (a === "reset") { if (plan.timers) { delete plan.timers[T.id]; savePlan(); } T.cfg = timerCfg(T.id); return drawTimer(); }
+  if (a === "start") {
+    const c = readTimerFields(), pre = { ...T_DEFAULT, ...TIMER_PRESETS[T.id] }, diff = {};
+    for (const k of ["sets", "reps", "hold", "rest", "setRest"]) if (c[k] !== pre[k]) diff[k] = c[k];
+    const had = JSON.stringify(plan.timers?.[T.id] || {}), now = JSON.stringify(diff);
+    if (had !== now) { plan.timers ||= {}; if (Object.keys(diff).length) plan.timers[T.id] = diff; else delete plan.timers[T.id]; savePlan(); }
+    T.cfg = c; beep(1, 1); return runTimer();
+  }
+  if (a === "pause") { T.paused = true; T.left = (T.end - Date.now()) / 1000; keepAwake(false); return drawTimer(); }
+  if (a === "resume") { T.paused = false; T.end = Date.now() + T.left * 1000; keepAwake(true); return drawTimer(); }
+  if (a === "skip") { if (T.paused) { T.paused = false; } T.end = Date.now(); return tickTimer(); }
+  if (a === "again") { T.state = "setup"; return drawTimer(); }
+  if (a === "markdone") { const k = T.key.slice(2), dd = dayDoc(todayStr()); if (!dd.done[k]) { dd.done[k] = new Date().toISOString(); saveDay(todayStr()); } setStatus("Checked off"); return closeTimer(); }
+});
+// Roll the "today" view over at midnight and refresh overdue markers.
+setInterval(() => { if (!editing && tab !== "questions" && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") render(); }, 60000);
+
+function applyData(data, replace) {
+  if (!data) return;
+  if (data.protocol?.items) { PROTOCOL = data.protocol; if (PROTOCOL.title) { document.title = PROTOCOL.title; document.querySelector("header.top h1").textContent = PROTOCOL.title; } }
+  if (data.plan) plan = data.plan;
+  if (data.days) { if (replace) for (const k of Object.keys(days)) if (!(k in data.days)) delete days[k]; Object.assign(days, data.days); }
+  if (data.checks) { if (replace) { checks.done = {}; checks.answers = {}; } Object.assign(checks.done, data.checks.done || {}); Object.assign(checks.answers, data.checks.answers || {}); }
+}
+// ---------- boot ----------
+let booting = false;
+async function boot() {
+  if (booting || me) return; booting = true;
+  try { await bootInner(); } finally { booting = false; }
+}
+async function bootInner() {
+  if (!sb) { signInScreen("Can't reach the sign-in service. Check your connection and reload the page."); return; }
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { signInScreen(); return; }
+  const email = (session.user.email || "").toLowerCase();
+  const role = await loadRole(email);
+  if (!role) { notListedScreen(email); return; }
+  me = { email, role };
+  if (location.hash.includes("access_token")) history.replaceState(null, "", location.pathname);
+  document.getElementById("gate").hidden = true; document.getElementById("app").hidden = false;
+  store = onlineStore();
+  render();
+  try {
+    const data = await store.loadAll();
+    applyData(data);
+    if (!plan.v2 && canEdit()) {
+      const STARTER = ["Pain medication","Other prescribed medication","Ice / cold therapy","Check incisions and dressing","Ankle pumps","Quad sets","Heel slides","Straight leg raises","Elevate leg","Physical therapy session"];
+      const keepOwn = plan.template === false ? (plan.tasks || []).filter(t => !STARTER.includes(t.name)) : [];
+      plan = { ...starterPlan(), surgeryDate: plan.surgeryDate || SURGERY_DEFAULT, side: plan.side || "Left" };
+      plan.tasks.push(...keepOwn);
+      savePlan();
+    }
+  } catch (e) { setStatus("Couldn't load saved data: " + (e?.message || "unknown error")); }
+  render(); renderSync();
+  store.subscribe(data => {   // live updates from other phones
+    applyData(data, true);
+    const t = document.activeElement?.tagName;
+    if (!editing && t !== "TEXTAREA" && t !== "INPUT" && t !== "SELECT") render();
+  });
+}
+sb?.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !me) boot(); if (ev === "SIGNED_OUT" && me) location.reload(); });
+boot();
+})();
+</script>
+</body>
+</html>
