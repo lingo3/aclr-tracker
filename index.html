@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1764c4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ACL Tracker">
 <meta name="robots" content="noindex">
 <title>ACL Power-Up Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -477,21 +479,44 @@ function showGate(html) {
 function signInScreen(msg) {
   showGate(`<div class="card" style="max-width:420px;margin:10vh auto 0">
     <h1 style="font-size:24px">ACL Power-Up Tracker</h1>
-    <p class="hint">Sign in with your email. We'll send you a link. Open it on this device to sign in. Only people on the tracker's list can see it.</p>
+    <p class="hint">Sign in with your email. We'll email you a 6-digit code to type in here. Only people on the tracker's list can see it.</p>
     <form id="signinForm" class="field" style="gap:10px">
       <label class="field"><span class="label">Email</span><input id="signinEmail" type="email" autocomplete="email" required placeholder="you@example.com"></label>
-      <button class="btn primary" type="submit" id="signinBtn">Email me a sign-in link</button>
+      <button class="btn primary" type="submit" id="signinBtn">Email me a code</button>
+    </form>
+    <form id="codeForm" class="field" style="gap:10px" hidden>
+      <label class="field"><span class="label">6-digit code from the email</span><input id="signinCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="10" placeholder="123456" style="font-family:var(--mono);font-size:22px;letter-spacing:.2em"></label>
+      <button class="btn primary" type="submit" id="codeBtn">Sign in</button>
+      <button class="linkbtn" type="button" id="codeBack">Use a different email or send a new code</button>
     </form>
     <p class="hint" id="signinMsg" role="status">${msg || ""}</p></div>`);
+  const m = document.getElementById("signinMsg");
+  let email = "";
   document.getElementById("signinForm").addEventListener("submit", async e => {
     e.preventDefault();
-    const email = document.getElementById("signinEmail").value.trim().toLowerCase(), m = document.getElementById("signinMsg"), b = document.getElementById("signinBtn");
+    email = document.getElementById("signinEmail").value.trim().toLowerCase();
+    const b = document.getElementById("signinBtn");
     if (!sb) { m.textContent = "Can't reach the sign-in service. Check your connection and reload."; return; }
     b.disabled = true; m.textContent = "Sending…";
     const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
     b.disabled = false;
-    m.textContent = error ? (/rate|seconds/i.test(error.message) ? "Too many sign-in emails just now. Wait a minute and try again." : "Couldn't send the email: " + error.message)
-      : `Check ${email} for a sign-in link. It can take a minute, and may land in spam.`;
+    if (error) { m.textContent = /rate|seconds/i.test(error.message) ? "Too many sign-in emails just now. Wait a few minutes and try again." : "Couldn't send the email: " + error.message; return; }
+    document.getElementById("signinForm").hidden = true; document.getElementById("codeForm").hidden = false;
+    document.getElementById("signinCode").focus();
+    m.textContent = `We sent a code to ${email}. It can take a minute, and may land in spam.`;
+  });
+  document.getElementById("codeForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const token = document.getElementById("signinCode").value.replace(/\D/g, ""), b = document.getElementById("codeBtn");
+    if (token.length < 6) { m.textContent = "Enter the 6-digit code from the email."; return; }
+    b.disabled = true; m.textContent = "Checking…";
+    const { error } = await sb.auth.verifyOtp({ email, token, type: "email" });
+    b.disabled = false;
+    if (error) { m.textContent = /expired|invalid/i.test(error.message) ? "That code didn't work. It may have expired. Send a new one and use the newest email." : "Couldn't sign in: " + error.message; return; }
+    m.textContent = "Signed in. Loading…"; boot();
+  });
+  document.getElementById("codeBack").addEventListener("click", () => {
+    document.getElementById("codeForm").hidden = true; document.getElementById("signinForm").hidden = false; m.textContent = "";
   });
 }
 function notListedScreen(email) {
