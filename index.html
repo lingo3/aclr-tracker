@@ -332,6 +332,7 @@ function phaseFor(p) {
 // Edits made offline wait in this browser and sync when the connection returns; edits from two people merge field by field.
 const SB_URL = "https://opapkeflbtnbnoarksjl.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wYXBrZWZsYnRuYm5vYXJrc2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1ODQ3OTQsImV4cCI6MjExMDE2MDc5NH0.b6QxB1wXabFhKyDvf3bxYyJpVUw-g0BtZR9SlDqH7TI";
+const RECOVERY = /type=recovery/.test(location.hash);   // arrived from a "set your password" email
 const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" } }) : null;
 const LS = "aclr-tracker-v1", CACHE = "aclr-cache-v2", PENDING = "aclr-pending-v2", ROLEKEY = "aclr-role-v2";
 const lsGet = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } };
@@ -476,47 +477,69 @@ function showGate(html) {
   document.getElementById("app").hidden = true;
   const g = document.getElementById("gate"); g.hidden = false; g.innerHTML = html;
 }
+let recoveryDone = false;
 function signInScreen(msg) {
   showGate(`<div class="card" style="max-width:420px;margin:10vh auto 0">
     <h1 style="font-size:24px">ACL Power-Up Tracker</h1>
-    <p class="hint">Sign in with your email. We'll email you a 6-digit code to type in here. Only people on the tracker's list can see it.</p>
+    <p class="hint">Only people on the tracker's list can see it.</p>
     <form id="signinForm" class="field" style="gap:10px">
-      <label class="field"><span class="label">Email</span><input id="signinEmail" type="email" autocomplete="email" required placeholder="you@example.com"></label>
-      <button class="btn primary" type="submit" id="signinBtn">Email me a code</button>
+      <label class="field"><span class="label">Email</span><input id="signinEmail" type="email" autocomplete="username" required placeholder="you@example.com"></label>
+      <label class="field"><span class="label">Password</span><input id="signinPw" type="password" autocomplete="current-password" required minlength="6"></label>
+      <button class="btn primary" type="submit" id="signinBtn">Sign in</button>
     </form>
-    <form id="codeForm" class="field" style="gap:10px" hidden>
-      <label class="field"><span class="label">6-digit code from the email</span><input id="signinCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="10" placeholder="123456" style="font-family:var(--mono);font-size:22px;letter-spacing:.2em"></label>
-      <button class="btn primary" type="submit" id="codeBtn">Sign in</button>
-      <button class="linkbtn" type="button" id="codeBack">Use a different email or send a new code</button>
-    </form>
+    <div class="row" style="justify-content:space-between">
+      <button class="linkbtn" type="button" id="pwNew">First time? Create a password</button>
+      <button class="linkbtn" type="button" id="pwForgot">Forgot password</button>
+    </div>
     <p class="hint" id="signinMsg" role="status">${msg || ""}</p></div>`);
-  const m = document.getElementById("signinMsg");
-  let email = "";
+  const m = document.getElementById("signinMsg"), val = id => document.getElementById(id).value;
+  const emailOk = () => { const e = val("signinEmail").trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) { m.textContent = "Enter your email first."; return null; } return e; };
+  const redirect = location.origin + location.pathname;
+  const sendReset = async email => {
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: redirect });
+    m.textContent = error ? (/rate|seconds/i.test(error.message) ? "Too many emails just now. Wait a few minutes and try again." : "Couldn't send the email: " + error.message)
+      : `We emailed ${email} a link to set your password. Open it (it's fine if it opens in Safari or another browser), choose a password, then come back here and sign in. It may land in spam.`;
+  };
   document.getElementById("signinForm").addEventListener("submit", async e => {
     e.preventDefault();
-    email = document.getElementById("signinEmail").value.trim().toLowerCase();
-    const b = document.getElementById("signinBtn");
     if (!sb) { m.textContent = "Can't reach the sign-in service. Check your connection and reload."; return; }
-    b.disabled = true; m.textContent = "Sending…";
-    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
+    const b = document.getElementById("signinBtn"); b.disabled = true; m.textContent = "Signing in…";
+    const { error } = await sb.auth.signInWithPassword({ email: val("signinEmail").trim().toLowerCase(), password: val("signinPw") });
     b.disabled = false;
-    if (error) { m.textContent = /rate|seconds/i.test(error.message) ? "Too many sign-in emails just now. Wait a few minutes and try again." : "Couldn't send the email: " + error.message; return; }
-    document.getElementById("signinForm").hidden = true; document.getElementById("codeForm").hidden = false;
-    document.getElementById("signinCode").focus();
-    m.textContent = `We sent a code to ${email}. It can take a minute, and may land in spam.`;
-  });
-  document.getElementById("codeForm").addEventListener("submit", async e => {
-    e.preventDefault();
-    const token = document.getElementById("signinCode").value.replace(/\D/g, ""), b = document.getElementById("codeBtn");
-    if (token.length < 6) { m.textContent = "Enter the 6-digit code from the email."; return; }
-    b.disabled = true; m.textContent = "Checking…";
-    const { error } = await sb.auth.verifyOtp({ email, token, type: "email" });
-    b.disabled = false;
-    if (error) { m.textContent = /expired|invalid/i.test(error.message) ? "That code didn't work. It may have expired. Send a new one and use the newest email." : "Couldn't sign in: " + error.message; return; }
+    if (error) { m.textContent = /confirm/i.test(error.message) ? "Confirm your email first: open the link we emailed you, then sign in here." : /invalid/i.test(error.message) ? "That email and password don't match. First time here? Tap “Create a password”." : "Couldn't sign in: " + error.message; return; }
     m.textContent = "Signed in. Loading…"; boot();
   });
-  document.getElementById("codeBack").addEventListener("click", () => {
-    document.getElementById("codeForm").hidden = true; document.getElementById("signinForm").hidden = false; m.textContent = "";
+  document.getElementById("pwNew").addEventListener("click", async () => {
+    const email = emailOk(); if (!email) return;
+    const password = val("signinPw");
+    if (password.length < 6) { m.textContent = "Type the password you want (at least 6 characters) in the Password box, then tap Create a password."; return; }
+    m.textContent = "Creating…";
+    const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: redirect } });
+    if (error) { m.textContent = /rate|seconds/i.test(error.message) ? "Too many emails just now. Wait a few minutes and try again." : "Couldn't create it: " + error.message; return; }
+    if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) return sendReset(email);   // account already exists: set its password by email
+    if (data?.session) { boot(); return; }
+    m.textContent = `Almost done: we emailed ${email} a link to confirm it's you. Open it (it may open in a browser), then come back here and sign in with your password. It may land in spam.`;
+  });
+  document.getElementById("pwForgot").addEventListener("click", () => { const email = emailOk(); if (email) sendReset(email); });
+}
+function setPasswordScreen() {
+  showGate(`<div class="card" style="max-width:420px;margin:10vh auto 0">
+    <h1 style="font-size:22px">Choose your password</h1>
+    <form id="pwForm" class="field" style="gap:10px">
+      <label class="field"><span class="label">New password (at least 6 characters)</span><input id="newPw" type="password" autocomplete="new-password" required minlength="6"></label>
+      <button class="btn primary" type="submit" id="pwBtn">Save password</button>
+    </form>
+    <p class="hint" id="pwMsg" role="status"></p></div>`);
+  document.getElementById("pwForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const m = document.getElementById("pwMsg"), pw = document.getElementById("newPw").value;
+    const { error } = await sb.auth.updateUser({ password: pw });
+    if (error) { m.textContent = "Couldn't save it: " + error.message; return; }
+    recoveryDone = true;
+    showGate(`<div class="card" style="max-width:420px;margin:10vh auto 0"><h1 style="font-size:22px">Password saved</h1>
+      <p>If you use the tracker from your home screen, open it from there now and sign in with your email and this password.</p>
+      <button class="btn primary" id="goApp">Open the tracker here</button></div>`);
+    document.getElementById("goApp").addEventListener("click", () => boot());
   });
 }
 function notListedScreen(email) {
@@ -1166,6 +1189,7 @@ async function bootInner() {
   if (!sb) { signInScreen("Can't reach the sign-in service. Check your connection and reload the page."); return; }
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { signInScreen(); return; }
+  if (RECOVERY && !recoveryDone) { setPasswordScreen(); return; }
   const email = (session.user.email || "").toLowerCase();
   const role = await loadRole(email);
   if (!role) { notListedScreen(email); return; }
