@@ -494,7 +494,8 @@ function renderSync() {
   el.dataset.state = syncState;
 }
 let statusT = null; function setStatus(s) { const el = document.getElementById("status"); el.textContent = s; clearTimeout(statusT); statusT = setTimeout(() => { statusT = null; el.textContent = storeNote(); }, 4000); }
-const storeNote = () => me ? `Signed in as ${me.email}` : "";
+const APP_VERSION = "Nov 19 fix 2";
+const storeNote = () => me ? `Signed in as ${me.email} · version ${APP_VERSION}` : "";
 
 // ---------- sign-in ----------
 function showGate(html) {
