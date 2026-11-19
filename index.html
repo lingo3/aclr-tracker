@@ -343,7 +343,8 @@ const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, { auth
 const LS = "aclr-tracker-v1", CACHE = "aclr-cache-v2", PENDING = "aclr-pending-v2", ROLEKEY = "aclr-role-v2";
 const lsGet = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } };
 const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-let me = null;            // { email, role }
+let me = null;
+let saveBlocked = "";            // { email, role }
 let readOnly = false;
 const canEdit = () => me && (me.role === "admin" || me.role === "editor");
 
@@ -384,21 +385,26 @@ function onlineStore() {
   const server = lsGet(CACHE) || {};        // id -> data, last version seen from the server
   const pending = lsGet(PENDING) || {};     // id -> { data, base } edits not yet saved online
   let flushing = false, retryT = null, listener = null;
+  const seenAt = {};       // id -> updated_at of the newest version this phone has seen, to ignore late echoes of older saves
+  const later = ms => { clearTimeout(retryT); retryT = setTimeout(() => { retryT = null; flush(); }, ms); };
   const view = () => { const v = { ...server }; for (const [id, p] of Object.entries(pending)) v[id] = p.data; return toData(v); };
   const persist = () => { lsSet(CACHE, server); lsSet(PENDING, pending); updateSync(); };
   const isNetErr = e => !navigator.onLine || /fetch|network|Failed|timeout/i.test(String(e?.message || e));
   function updateSync() { const n = Object.keys(pending).length; syncState = !navigator.onLine ? (n ? "offline-pending" : "offline") : n ? "saving" : "saved"; renderSync(); }
 
   async function pull() {
-    const { data, error } = await sb.from("tracker_docs").select("id,data");
+    const { data, error } = await sb.from("tracker_docs").select("id,data,updated_at");
     if (error) throw error;
+    if (!data.length && Object.keys(server).length) {   // the database hid everything: this sign-in isn't recognized any more
+      saveBlocked = "The tracker didn't recognize this sign-in, so it's showing what this phone saved last. Sign out and sign back in."; renderBlocked(); return;
+    }
     for (const k of Object.keys(server)) delete server[k];
-    for (const r of data) server[r.id] = r.data;
+    for (const r of data) { server[r.id] = r.data; seenAt[r.id] = r.updated_at; }
     persist();
   }
   async function flush() {
     if (flushing || !navigator.onLine) return;
-    flushing = true; clearTimeout(retryT);
+    flushing = true; clearTimeout(retryT); retryT = null;
     let changed = false;
     try {
       for (const id of Object.keys(pending)) {
@@ -407,9 +413,9 @@ function onlineStore() {
         if (e1) throw e1;
         const remote = row ? row.data : null;
         const out = deq(remote, p.base) ? local : merge3(p.base, local, remote);
-        const { error: e2 } = await sb.from("tracker_docs").upsert({ id, data: out, updated_by: me.email });
+        const { data: w, error: e2 } = await sb.from("tracker_docs").upsert({ id, data: out, updated_by: me.email }).select("updated_at").single();
         if (e2) throw e2;
-        server[id] = out;
+        server[id] = out; if (w?.updated_at) seenAt[id] = w.updated_at; saveBlocked = "";
         if (pending[id] === p) delete pending[id]; else pending[id].base = clone(out);
         if (!deq(out, local)) changed = true;
         persist();
@@ -417,12 +423,16 @@ function onlineStore() {
       if (changed) listener?.(view());
     } catch (e) {
       if (e?.code === "42501" || /row-level security|permission/i.test(e?.message || "")) {
-        readOnly = true; for (const k of Object.keys(pending)) delete pending[k]; persist();
-        setStatus("View only: ask Malek for edit access to save changes."); listener?.(view());
-      } else if (isNetErr(e)) { retryT = setTimeout(flush, 15000); }
-      else { setStatus("Couldn't save yet: " + (e?.message || "unknown error") + ". Will retry."); retryT = setTimeout(flush, 30000); }
+        // The database refused the save. Keep the changes on this phone (nothing is thrown away) and say why.
+        const role = await loadRole(me.email).catch(() => null);
+        saveBlocked = role === "viewer" ? "This account is view only, so changes can't be saved."
+          : "The tracker didn't accept this sign-in for saving. Sign out and sign back in. Your changes are kept on this phone and will save after that.";
+        if (role === "viewer") { readOnly = true; for (const k of Object.keys(pending)) delete pending[k]; persist(); listener?.(view()); }
+        renderBlocked();
+      } else if (isNetErr(e)) { later(15000); }
+      else { saveBlocked = "Couldn't save yet (" + (e?.message || e?.code || "unknown error") + "). It will keep trying."; renderBlocked(); later(30000); }
     } finally { flushing = false; updateSync(); }
-    if (Object.keys(pending).length && navigator.onLine && !retryT) retryT = setTimeout(flush, 3000);
+    if (Object.keys(pending).length && navigator.onLine && !retryT && !saveBlocked) later(1500);
   }
   window.addEventListener("online", async () => { updateSync(); try { await pull(); } catch {} listener?.(view()); flush(); });
   window.addEventListener("offline", updateSync);
@@ -439,8 +449,9 @@ function onlineStore() {
     subscribe(cb) {
       listener = cb;
       sb.channel("tracker-docs").on("postgres_changes", { event: "*", schema: "public", table: "tracker_docs" }, payload => {
-        const r = payload.new; if (!r?.id) return;
-        server[r.id] = r.data; persist();
+        const r = payload.new; if (!r?.id || r.data === undefined) return;
+        if (seenAt[r.id] && r.updated_at && r.updated_at < seenAt[r.id]) return;   // an older save arriving late
+        server[r.id] = r.data; if (r.updated_at) seenAt[r.id] = r.updated_at; persist();
         if (!pending[r.id]) cb(view());
       }).subscribe();
     },
@@ -469,6 +480,13 @@ const savePlan = () => { plan.template = false; store?.saveDoc("plan", plan); };
 const saveChecks = () => store?.saveDoc("checks", checks);
 const saveDay = d => store?.saveDoc("day-" + d, days[d]);
 let syncState = "";
+function renderBlocked() {
+  let el = document.getElementById("blocked");
+  if (!el) { el = document.createElement("div"); el.id = "blocked"; el.className = "banner"; el.setAttribute("role", "alert"); el.style.background = "var(--warn-soft, #fde8dc)"; document.querySelector("nav.tabs").before(el); }
+  el.hidden = !saveBlocked;
+  el.innerHTML = saveBlocked ? `<span>${esc(saveBlocked)}</span>${/Sign out/.test(saveBlocked) ? `<button class="btn" id="blockedOut">Sign out</button>` : ""}` : "";
+  document.getElementById("blockedOut")?.addEventListener("click", async () => { await sb.auth.signOut(); lsSet(ROLEKEY, null); location.reload(); });
+}
 function renderSync() {
   const el = document.getElementById("sync"); if (!el) return;
   const t = { saved: "Synced", saving: "Saving…", offline: "Offline", "offline-pending": "Offline: changes will sync when you reconnect" }[syncState] || "";
