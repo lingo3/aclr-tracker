@@ -120,6 +120,12 @@ li.done .check svg { opacity: 1 }
 
 .chartbox { overflow-x: auto }
 .chartbox svg { display: block; width: 100%; height: auto }
+table.hist.medrec td, table.hist.medrec th { text-align: left; vertical-align: middle }
+table.hist.medrec td:nth-child(3) { white-space: normal; min-width: 150px }
+table.medrec input, table.medrec select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); font-size: 14px }
+table.medrec input.dz { width: 96px } table.medrec input.cm { width: 180px }
+table.medrec .src { display: block; font-size: 12px; color: var(--muted) }
+table.medrec .x { border: 0; background: none; color: var(--muted); font-size: 18px; padding: 0 6px }
 table.hist { width: 100%; border-collapse: collapse; font-size: 14px }
 table.hist th, table.hist td { text-align: right; padding: 6px 8px; border-top: 1px solid var(--line); white-space: nowrap }
 table.hist th:first-child, table.hist td:first-child { text-align: left }
@@ -751,6 +757,55 @@ function measureInputs() {
     <input id="dValue" type="number" inputmode="decimal" value="${esc(draft.value)}" placeholder="${draft.motion === "flex" ? "e.g. 95" : "0 = straight"}"></label>`;
 }
 
+// ---- Medication record: built from doses checked off or logged with "+ Dose", plus entries added by hand ----
+const MED_DOSE = { M02: "5 mg (1 tablet)", M03: "600 mg", M04: "81 mg", M05: "100 mg", M06: "50 mg (1 tablet)", M09: "4 mg", M10: "1000 mg" };
+const medName = it => it.title.replace(/\s*\(.*$/, "");
+function medTimesOn(id, d) { return dayItems(d).med.filter(o => o.it.id === id).map(o => o.hm).sort(); }
+function nextDoseTxt(it, d, hm) {
+  const later = medTimesOn(it.id, d).find(t => t > hm);
+  if (later) return fmtHM(later);
+  for (let k = 1; k <= 7; k++) { const t = medTimesOn(it.id, addDays(d, k))[0]; if (t) return `${k === 1 ? "Tomorrow" : parseYmd(addDays(d, k)).toLocaleDateString(undefined,{weekday:"short"})} ${fmtHM(t)}`; }
+  return "Last scheduled dose";
+}
+function medRows(d) {
+  const dd = days[d] || { done: {} }, rec = dd.medrec || {}, rows = [];
+  for (const it of PROTOCOL.items.filter(i => i.sec === "med" && !i.dow)) {
+    for (const [k, at] of Object.entries(dd.done || {})) if (k.startsWith(it.id + "@") && at) {
+      const hm = k.split("@")[1], key = "s:" + k;
+      rows.push({ key, t: at, med: medName(it), dose: rec[key]?.dose ?? MED_DOSE[it.id] ?? "", next: nextDoseTxt(it, d, hm), pain: rec[key]?.pain ?? "", note: rec[key]?.note ?? "", src: `Scheduled ${fmtHM(hm)}` });
+    }
+    (dd.prn?.[it.id] || []).forEach((at, i) => { const key = `p:${it.id}:${i}`;
+      rows.push({ key, t: at, med: medName(it), dose: rec[key]?.dose ?? MED_DOSE[it.id] ?? "", next: `Not before ${fmtTime(new Date(new Date(at).getTime() + it.prn * 3600e3).toISOString())}`, pain: rec[key]?.pain ?? "", note: rec[key]?.note ?? "", src: "As needed" }); });
+  }
+  (dd.medman || []).forEach(m => rows.push({ key: "m:" + m.id, t: m.t, med: m.med, dose: m.dose, next: m.next ? fmtHM(m.next) : "", pain: m.pain ?? "", note: m.note || "", src: "Added by hand", manual: m.id }));
+  return rows.sort((a, b) => a.t.localeCompare(b.t));
+}
+function medRecordHtml(d) {
+  const rows = medRows(d), meds = PROTOCOL.items.filter(i => i.sec === "med" && !i.dow).map(medName);
+  const painSel = (key, v) => `<select data-mr="${esc(key)}" data-f="pain" aria-label="Pain level">${["",0,1,2,3,4,5,6,7,8,9,10].map(x => `<option ${String(v) === String(x) ? "selected" : ""} value="${x}">${x === "" ? "–" : x}</option>`).join("")}</select>`;
+  const nowT = nowHM();
+  return `<div class="card">
+    <h2 style="font-size:18px">Medication record</h2>
+    ${rows.length ? `<div class="tablewrap"><table class="hist medrec"><thead><tr><th>Date</th><th>Time</th><th>Medication</th><th>Dose</th><th>Next dose</th><th>Pain level</th><th>Comments</th><th></th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td>${parseYmd(d).toLocaleDateString(undefined,{month:"numeric",day:"numeric"})}</td><td class="num">${fmtTime(r.t)}</td>
+        <td>${esc(r.med)}<span class="src">${esc(r.src)}</span></td>
+        <td><input class="dz" data-mr="${esc(r.key)}" data-f="dose" value="${esc(r.dose)}" aria-label="Dose"></td>
+        <td>${esc(r.next) || "–"}</td><td>${painSel(r.key, r.pain)}</td>
+        <td><input class="cm" data-mr="${esc(r.key)}" data-f="note" value="${esc(r.note)}" placeholder="Side effects, relief…" aria-label="Comments"></td>
+        <td>${r.manual ? `<button class="x" data-rmmed="${esc(r.manual)}" aria-label="Delete this entry">×</button>` : ""}</td></tr>`).join("")}
+    </tbody></table></div>` : `<div class="empty">No doses recorded for this day yet. Checking off a medication on the Today tab, or tapping + Dose, adds it here.</div>`}
+    ${canEdit() && !readOnly ? `<details><summary class="linkbtn" style="font-size:14px">Add a dose by hand</summary>
+      <div class="grid2" style="margin-top:10px">
+        <label class="field"><span class="label">Time</span><input type="time" id="mrTime" value="${sel === todayStr() ? nowT : "08:00"}"></label>
+        <label class="field"><span class="label">Medication</span><input id="mrMed" list="mrMeds" placeholder="Name"><datalist id="mrMeds">${meds.map(m => `<option value="${esc(m)}">`).join("")}</datalist></label>
+        <label class="field"><span class="label">Dose</span><input id="mrDose" placeholder="e.g. 1000 mg"></label>
+        <label class="field"><span class="label">Next dose</span><input type="time" id="mrNext"></label>
+        <label class="field"><span class="label">Pain level</span><select id="mrPain">${["",0,1,2,3,4,5,6,7,8,9,10].map(x => `<option value="${x}">${x === "" ? "Not logged" : x}</option>`).join("")}</select></label>
+        <label class="field"><span class="label">Comments</span><input id="mrNote"></label>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn primary" data-act="addmed">Add to record</button><span class="hint" id="mrMsg"></span></div></details>` : ""}
+    <p class="hint" style="margin:0">Dose, pain level and comments are saved when you leave each box. Times are when the dose was checked off or logged.</p></div>`;
+}
 function viewLog() {
   const d = dayDoc(sel), op = rom(d, "op"), ot = rom(d, "other");
   const readings = (d.readings || []);
@@ -766,6 +821,7 @@ function viewLog() {
     </div>
     <label class="field"><span class="label">Notes</span><textarea id="lgNote" placeholder="How the knee felt, questions for your PT, anything unusual">${esc(d.note || "")}</textarea></label>
   </div>
+  ${medRecordHtml(sel)}
 
   <div class="card">
     <h2 style="font-size:18px">Range of motion</h2>
@@ -955,6 +1011,11 @@ $("view").addEventListener("click", async e => {
     const dd = dayDoc(sel), kk = k.slice(2); if (dd.done[kk]) delete dd.done[kk]; else dd.done[kk] = new Date().toISOString(); saveDay(sel); return render(); }
   if (el.dataset.prn) { const dd = dayDoc(sel); ((dd.prn ||= {})[el.dataset.prn] ||= []).push(new Date().toISOString()); saveDay(sel); setStatus("Dose logged"); return render(); }
   if (el.dataset.undoprn) { const l = dayDoc(sel).prn?.[el.dataset.undoprn]; if (l?.length) { l.pop(); saveDay(sel); } return render(); }
+  if (a === "addmed") { const med = $("mrMed").value.trim(), t = $("mrTime").value; if (!med || !t) { $("mrMsg").textContent = "Add a medication and time."; return; }
+    const dt = parseYmd(sel); const [h, m] = t.split(":").map(Number); dt.setHours(h, m, 0, 0);
+    const dd = dayDoc(sel); (dd.medman ||= []).push({ id: uid(), t: dt.toISOString(), med, dose: $("mrDose").value.trim(), next: $("mrNext").value || "", pain: $("mrPain").value === "" ? "" : Number($("mrPain").value), note: $("mrNote").value.trim() });
+    saveDay(sel); setStatus("Added to the medication record"); return render(); }
+  if (el.dataset.rmmed) { const dd = dayDoc(sel); dd.medman = (dd.medman || []).filter(m => m.id !== el.dataset.rmmed); saveDay(sel); return render(); }
   if (el.dataset.timer) return openTimer(el.dataset.timer, el.dataset.tkey);
   if (el.dataset.goto) { tab = el.dataset.goto; window.scrollTo(0, 0); return render(); }
   if ("filter" in el.dataset) { filter = el.dataset.filter || null; return render(); }
@@ -1012,6 +1073,10 @@ $("view").addEventListener("change", async e => {
   if (id === "dPhoto") { const f = e.target.files?.[0]; if (!f) return;
     const r = new FileReader(); r.onload = () => { const img = new Image(); img.onload = () => { readDraft(); photo = { img, pts: [] }; draft.value = ""; render(); }; img.src = r.result; }; r.readAsDataURL(f); }
   if (id === "lgNote") { d.note = e.target.value; saveDay(sel); }
+  if (e.target.dataset.mr) { const k = e.target.dataset.mr, f = e.target.dataset.f, v = f === "pain" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value, dd = dayDoc(sel);
+    if (k.startsWith("m:")) { const m = (dd.medman || []).find(x => x.id === k.slice(2)); if (m) m[f] = v; }
+    else ((dd.medrec ||= {})[k] ||= {})[f] = v;
+    saveDay(sel); setStatus("Saved"); return; }
   if (e.target.dataset.answer) { checks.answers[e.target.dataset.answer] = e.target.value; saveChecks(); setStatus("Answer saved"); }
 });
 // ---- Interval timer: hold / relax reps, sets and set breaks, with beeps and vibration ----
