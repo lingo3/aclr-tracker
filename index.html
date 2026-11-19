@@ -387,7 +387,8 @@ function onlineStore() {
   let flushing = false, retryT = null, listener = null;
   const seenAt = {};       // id -> updated_at of the newest version this phone has seen, to ignore late echoes of older saves
   const later = ms => { clearTimeout(retryT); retryT = setTimeout(() => { retryT = null; flush(); }, ms); };
-  const view = () => { const v = { ...server }; for (const [id, p] of Object.entries(pending)) v[id] = p.data; return toData(v); };
+  // A deep copy: the screen edits what it is given, and must never edit the saved copy that edits are compared against.
+  const view = () => { const v = { ...server }; for (const [id, p] of Object.entries(pending)) v[id] = p.data; return toData(clone(v)); };
   const persist = () => { lsSet(CACHE, server); lsSet(PENDING, pending); updateSync(); };
   const isNetErr = e => !navigator.onLine || /fetch|network|Failed|timeout/i.test(String(e?.message || e));
   function updateSync() { const n = Object.keys(pending).length; syncState = !navigator.onLine ? (n ? "offline-pending" : "offline") : n ? "saving" : "saved"; renderSync(); }
@@ -494,7 +495,7 @@ function renderSync() {
   el.dataset.state = syncState;
 }
 let statusT = null; function setStatus(s) { const el = document.getElementById("status"); el.textContent = s; clearTimeout(statusT); statusT = setTimeout(() => { statusT = null; el.textContent = storeNote(); }, 4000); }
-const APP_VERSION = "Nov 19 fix 2";
+const APP_VERSION = "Nov 19 fix 3";
 const storeNote = () => me ? `Signed in as ${me.email} · version ${APP_VERSION}` : "";
 
 // ---------- sign-in ----------
